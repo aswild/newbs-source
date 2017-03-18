@@ -4,12 +4,10 @@
 #include <cstring>
 #include <cerrno>
 
-extern "C" {
 #include <fcntl.h>
 #include <unistd.h>
 #include <spi/neostrip.h>
 #include <sys/ioctl.h>
-}
 
 #include "Neostrip.h"
 #include "utils.h"
