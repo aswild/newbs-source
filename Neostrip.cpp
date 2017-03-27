@@ -14,9 +14,6 @@ extern "C" {
 #include "Neostrip.h"
 #include "utils.h"
 
-#define PRINT_ERR(fmt, args...) \
-    fprintf(stderr, "%s: " fmt, __func__, ##args)
-
 Neostrip::Neostrip(size_t len) : fd(-1), len(len), scale(1.0)
 {
     this->pixels = (uint32_t*)calloc(this->len, sizeof(*this->pixels));

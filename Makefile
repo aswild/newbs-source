@@ -11,7 +11,7 @@ endif
 KINCLUDE ?= /workspace/linux-raspberrypi/HEADERS_INSTALL/include
 endif
 
-CXXFLAGS		?= -O2
+CXXFLAGS		?= -O2 -ffast-math
 EXTRA_CXXFLAGS	= -Wall -Wextra
 USE_CXXFLAGS	= $(EXTRA_CXXFLAGS) $(CXXFLAGS)
 

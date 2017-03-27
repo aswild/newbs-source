@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "Neostrip.h"
+#include "utils.h"
 
 Neostrip strip(8);
 
@@ -66,34 +67,52 @@ void rainbow(void)
         {
             case R2Y:
                 if ((g+=step) >= 0xff)
+                {
+                    g = 0xff;
                     state = Y2G;
+                }
                 break;
             case Y2G:
                 if ((r-=step) <= 0)
+                {
+                    r = 0;
                     state = G2C;
+                }
                 break;
             case G2C:
                 if ((b+=step) >= 0xff)
+                {
+                    b = 0xff;
                     state = C2B;
+                }
                 break;
             case C2B:
                 if ((g-=step) <= 0)
+                {
+                    g = 0;
                     state = B2M;
+                }
                 break;
             case B2M:
                 if ((r+=step) >= 0xff)
+                {
+                    r = 0xff;
                     state = M2R;
+                }
                 break;
             case M2R:
                 if ((b-=step) <= 0)
+                {
+                    b = 0;
                     state = R2Y;
+                }
                 break;
             default:
                 printf("error: unknown state (%d)\n", state);
                 return;
                 break;
         }
-        strip.set_all_pixels(r, g, b);
+        strip.set_all_pixels(TO_RGB(r, g, b));
         strip.write();
         usleep(sleep_time_us);
     }
@@ -102,24 +121,43 @@ void rainbow(void)
 int main(int argc, char *argv[])
 {
     int ret = 0;
-    int cmd;
+    int cmd, opt;
     uint32_t val;
 
-    if (argc < 2)
+    while ((opt = getopt(argc, argv, "s:")) != -1)
+    {
+        switch (opt)
+        {
+            case 's':
+                {
+                    float scale;
+                    if (!sscanf(optarg, "%f", &scale))
+                        PRINT_ERR("invalid scale: '%s'\n", optarg);
+                    strip.set_scale(scale);
+                }
+                break;
+            default:
+                PRINT_ERR("unknown option: '%c'", opt);
+                return -1;
+                break;
+        }
+    }
+
+    if (argc - optind < 1)
     {
         printf("need a command!\n");
         return 1;
     }
 
-    if ((cmd = get_cmd(argv[1])) < 0)
+    if ((cmd = get_cmd(argv[optind])) < 0)
     {
         printf("unknown command: '%s'\n", argv[1]);
         return 1;
     }
 
-    if (argc > 2)
+    if (argc - optind > 1)
     {
-        val = strtoul(argv[2], NULL, 16);
+        val = strtoul(argv[optind+1], NULL, 16);
     }
     else
     {

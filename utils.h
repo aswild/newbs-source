@@ -7,6 +7,9 @@
                          (((g) & 0xff) << 8)  | \
                          ((b) & 0xff))
 
+#define PRINT_ERR(fmt, args...) \
+    fprintf(stderr, "%s: " fmt, __func__, ##args)
+
 #define RED(_color)   (((color) >> 16) & 0xff)
 #define GREEN(_color) (((color) >> 8) & 0xff)
 #define BLUE(_color)  ((color) & 0xff)
