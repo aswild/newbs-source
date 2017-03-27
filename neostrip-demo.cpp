@@ -1,18 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 
-#include "spi/neostrip.h"
+#include "Neostrip.h"
 
-#define DEV_FILE "/dev/neostrip0"
-
-#define TO_RGB(r, g, b) ((((r) & 0xff) << 16) | \
-                         (((g) & 0xff) << 8)  | \
-                         ((b) & 0xff))
+Neostrip strip(8);
 
 enum {
     CMD_HELLO,
@@ -46,42 +40,6 @@ int get_cmd(const char *buf)
     return -1;
 }
 
-static int write_color(int fd, uint32_t val)
-{
-    int i;
-    struct neostrip_ioc_data ioc_data = {
-        .offset = 0,
-        .count = 8,
-    };
-
-    ioc_data.pixels = (uint32_t*)malloc(8 * sizeof(uint32_t));
-    for (i = 0; i < 8; i++)
-        ioc_data.pixels[i] = val;
-
-    return ioctl(fd, NEOSTRIP_IOC_WRITE, &ioc_data);
-}
-
-static int write_color_rgb(int fd, int r, int g, int b)
-{
-    if (r < 0)
-        r = 0;
-    else if (r > 0xff)
-        r = 0xff;
-
-    if (g < 0)
-        g = 0;
-    else if (g > 0xff)
-        g = 0xff;
-
-    if (b < 0)
-        b = 0;
-    else if (b > 0xff)
-        b = 0xff;
-
-    uint32_t color = TO_RGB(r, g, b);
-    return write_color(fd, color);
-}
-
 // rainbow states
 enum {
     R2Y,
@@ -92,7 +50,7 @@ enum {
     M2R,
 };
 
-void rainbow(int fd)
+void rainbow(void)
 {
     int r = 0xff;
     int g = 0;
@@ -102,7 +60,6 @@ void rainbow(int fd)
     const int step = 2;
     const useconds_t sleep_time_us = 10000;
 
-    write_color_rgb(fd, r, g, b);
     while (1)
     {
         switch (state)
@@ -136,15 +93,15 @@ void rainbow(int fd)
                 return;
                 break;
         }
-        write_color_rgb(fd, r, g, b);
+        strip.set_all_pixels(r, g, b);
+        strip.write();
         usleep(sleep_time_us);
     }
 }
 
 int main(int argc, char *argv[])
 {
-    int fd;
-    int ret;
+    int ret = 0;
     int cmd;
     uint32_t val;
 
@@ -169,33 +126,24 @@ int main(int argc, char *argv[])
         val = 0xa1e600;
     }
 
-    if ((fd = open(DEV_FILE, O_RDONLY)) < 0)
-    {
-        printf("Can't open '%s'\n", DEV_FILE);
-        return 1;
-    }
+    strip.open_fd();
 
     switch (cmd)
     {
-        case CMD_HELLO:
-            ret = ioctl(fd, NEOSTRIP_IOC_HELLO, val);
-            printf("returned %d\n", ret);
-            break;
-
         case CMD_READ:
             printf("not implemented\n");
             break;
 
         case CMD_WRITE:
-            ret = write_color(fd, val);
+            strip.set_all_pixels(val);
+            ret = strip.write();
             break;
 
         case CMD_RAINBOW:
-            rainbow(fd);
+            rainbow();
             break;
     }
 
-    close(fd);
-
-    return 0;
+    strip.close_fd();
+    return ret;
 }

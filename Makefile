@@ -1,42 +1,44 @@
 # Makefile for neostrip demo program
 
 ifeq ($(findstring arm,$(shell uname -p)),arm)
-ifeq ($(origin CC),default)
-CC 			    = gcc
+ifeq ($(origin CXX),default)
+CXX = g++
 endif
 else
-ifeq ($(origin CC),default)
-CC 			    = arm-linux-gnueabihf-gcc -mcpu=cortex-a7 -mfpu=neon-vfpv4
+ifeq ($(origin CXX),default)
+CXX = arm-linux-gnueabihf-g++ -mcpu=cortex-a7 -mfpu=neon-vfpv4
 endif
-KINCLUDE	   ?= /workspace/linux-raspberrypi/HEADERS_INSTALL/include
+KINCLUDE ?= /workspace/linux-raspberrypi/HEADERS_INSTALL/include
 endif
 
-CFLAGS 		   ?= -O2
-EXTRA_CFLAGS 	= -Wall -Wextra
-USE_CFLAGS	 	= $(EXTRA_CFLAGS) $(CFLAGS)
+CXXFLAGS		?= -O2
+EXTRA_CXXFLAGS	= -Wall -Wextra
+USE_CXXFLAGS	= $(EXTRA_CXXFLAGS) $(CXXFLAGS)
 
 ifneq ($(KINCLUDE),)
-USE_CFLAGS	   += -I$(KINCLUDE)
+USE_CXXFLAGS += -I$(KINCLUDE)
 endif
 
-bindir		   ?= /usr/bin
+bindir		?= /usr/bin
 
-TARGET 			= neostrip-demo
-SOURCES			= neostrip-demo.c
+TARGET 		= neostrip-demo
+SOURCES		= neostrip-demo.cpp \
+			  Neostrip.cpp \
+			  utils.cpp
 
-DEPLOY_IP	   ?= 10.11.0.2
-DEPLOY_USER	   ?= root
-DEPLOY_PATH    ?= /home/root/$(TARGET)
+DEPLOY_IP	?= 10.11.0.2
+DEPLOY_USER	?= root
+DEPLOY_PATH	?= /home/root/$(TARGET)
 
-OBJECTS			= $(SOURCES:.c=.o)
-DEPS			= $(SOURCES:.c=.d)
+OBJECTS		= $(SOURCES:.cpp=.o)
+DEPS		= $(SOURCES:.cpp=.d)
 
 all: $(TARGET)
 $(TARGET): $(OBJECTS)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CXX) $(LDFLAGS) -o $@ $^ -lm
 
-%.o: %.c
-	$(CC) -c $(USE_CFLAGS) -MD -MP -o $@ $<
+%.o: %.cpp
+	$(CXX) -c $(USE_CXXFLAGS) -MD -MP -o $@ $<
 
 install: $(TARGET)
 	install -m 0755 -D $(TARGET) $(DESTDIR)$(bindir)/$(TARGET)
@@ -45,10 +47,10 @@ uninstall:
 	rm -f $(DESTDIR)$(bindir)/$(TARGET)
 
 clean:
-	rm -f $(OBJECTS) $(DEPS)
+	rm -f $(TARGET) $(OBJECTS) $(DEPS)
 
 deploy: $(TARGET)
-	scp -v $(TARGET) $(DEPLOY_USER)@$(DEPLOY_IP):$(DEPLOY_PATH)
+	scp $(TARGET) $(DEPLOY_USER)@$(DEPLOY_IP):$(DEPLOY_PATH)
 
 .PHONY: all install uninstall clean deploy
 
