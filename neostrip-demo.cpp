@@ -7,12 +7,14 @@
 #include "Neostrip.h"
 #include "utils.h"
 
-Neostrip strip(8);
+#define N_PIXELS 8
+Neostrip strip(N_PIXELS);
 
 enum {
     CMD_HELLO,
     CMD_READ,
     CMD_WRITE,
+    CMD_SRAINBOW, // old static rainbow
     CMD_RAINBOW,
 };
 
@@ -20,6 +22,7 @@ const char *cmd_strings[] = {
     "hello",
     "read",
     "write",
+    "srainbow",
     "rainbow",
 };
 
@@ -51,7 +54,7 @@ enum {
     M2R,
 };
 
-void rainbow(void)
+void srainbow(void)
 {
     int r = 0xff;
     int g = 0;
@@ -118,6 +121,25 @@ void rainbow(void)
     }
 }
 
+void rainbow(void)
+{
+    const useconds_t sleep_time_us = 10000;
+    const float dh = 360.0 / N_PIXELS;
+    float basehue = 0;
+
+    while (1)
+    {
+        for (int i = 0; i < N_PIXELS; i++)
+            strip.set_pixel(i, hue_to_rgb((dh * i) - basehue));
+
+        if (++basehue > 360)
+            basehue = 0;
+
+        strip.write();
+        usleep(sleep_time_us);
+    }
+}
+
 int main(int argc, char *argv[])
 {
     int ret = 0;
@@ -132,7 +154,10 @@ int main(int argc, char *argv[])
                 {
                     float scale;
                     if (!sscanf(optarg, "%f", &scale))
+                    {
                         PRINT_ERR("invalid scale: '%s'\n", optarg);
+                        return -1;
+                    }
                     strip.set_scale(scale);
                 }
                 break;
@@ -175,6 +200,10 @@ int main(int argc, char *argv[])
         case CMD_WRITE:
             strip.set_all_pixels(val);
             ret = strip.write();
+            break;
+
+        case CMD_SRAINBOW:
+            srainbow();
             break;
 
         case CMD_RAINBOW:
