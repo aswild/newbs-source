@@ -26,16 +26,17 @@ DEPS	= $(SOURCES:.c=.d)
 
 CC 		= gcc
 
-CCFLAGS = -std=gnu99 -Wall -Werror -g -O2 -MD -MP $(CFLAGS)
+CC_FLAGS = -std=gnu11 -Wall -Werror -g -O2 -MD -MP $(CFLAGS)
+LD_FLAGS = -Wall -O2 $(LDFLAGS)
 
 build: $(TARGET)
 all: build
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LD_FLAGS) -o $@ $^
 
 %.o: %.c
-	$(CC) $(CCFLAGS) -c -o $@ $<
+	$(CC) $(CC_FLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(TARGET) $(OBJECTS) $(DEPS)
