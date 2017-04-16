@@ -169,6 +169,8 @@ static int parse_line(const char *buf, parsed_line_t *parsed_line)
     if (!buf || !parsed_line)
         return -1;
 
+    memset(parsed_line, 0, sizeof(*parsed_line));
+
     // ignore all leading whitespace
     while (isspace(*buf))
         buf++;
@@ -238,10 +240,14 @@ static int parse_line(const char *buf, parsed_line_t *parsed_line)
     return 0;
 }
 
-static int add_option_param(newbs_option_t *opt, char *key, char *value)
+static int add_option_param(newbs_option_t *opt, char *key, char *value, bool *can_free)
 {
     if (!opt || !key || !value)
         return -1;
+
+    // whether the caller can free key/value
+    can_free[0] = true;
+    can_free[1] = true;
 
     if (!strcasecmp(key, "type"))
     {
@@ -266,6 +272,7 @@ static int add_option_param(newbs_option_t *opt, char *key, char *value)
     else if (!strcasecmp(key, "root"))
     {
         opt->root = value;
+        can_free[1] = false;
     }
     else if (!strcasecmp(key, "rebootpart"))
     {
@@ -280,6 +287,7 @@ static int add_option_param(newbs_option_t *opt, char *key, char *value)
     else if (!strcasecmp(key, "customcommand"))
     {
         opt->custom_command = value;
+        can_free[1] = false;
     }
     else
     {
@@ -289,14 +297,19 @@ static int add_option_param(newbs_option_t *opt, char *key, char *value)
     return 0;
 }
 
-static int add_main_config_param(newbs_config_t *config, char *key, char *value)
+static int add_main_config_param(newbs_config_t *config, char *key, char *value, bool *can_free)
 {
     if (!config || !key || !value)
         return -1;
 
+    // whether the caller can free key/value
+    can_free[0] = true;
+    can_free[1] = true;
+
     if (!strcasecmp(key, "default"))
     {
         config->default_option_str = value;
+        can_free[1] = false;
     }
     else if (!strcasecmp(key, "timeout"))
     {
@@ -374,6 +387,7 @@ static int parse_config_file(const char *filename, newbs_config_t *config)
                 if (!strcasecmp(parsed_line.key, "newbs"))
                 {
                     parsing_main_config = true;
+                    free(parsed_line.key);
                 }
                 else
                 {
@@ -393,17 +407,27 @@ static int parse_config_file(const char *filename, newbs_config_t *config)
                     config->option_count++;
                     current_opt = new_opt;
                 }
+                free(parsed_line.value);
                 break;
 
             case LINE_TYPE_OPTION_PARAM:
-                if (parsing_main_config)
                 {
-                    if (add_main_config_param(config, parsed_line.key, parsed_line.value))
-                        goto out;
-                }
-                else
-                {
-                    if (add_option_param(current_opt, parsed_line.key, parsed_line.value))
+                    bool can_free[2] = {0};
+                    int err = 0;
+                    if (parsing_main_config)
+                    {
+                        err = add_main_config_param(config, parsed_line.key, parsed_line.value, can_free);
+                    }
+                    else
+                    {
+                        err = add_option_param(current_opt, parsed_line.key, parsed_line.value, can_free);
+                    }
+
+                    if (err || can_free[0])
+                        free(parsed_line.key);
+                    if (err || can_free[1])
+                        free(parsed_line.value);
+                    if (err)
                         goto out;
                 }
                 break;
@@ -433,6 +457,28 @@ static void newbs_config_init(newbs_config_t *config)
     memset(config, 0, sizeof(*config));
     config->timeout = DEFAULT_TIMEOUT;
     config->error_action = DEFAULT_ERROR_ACTION;
+}
+
+static void newbs_config_cleanup(newbs_config_t *config)
+{
+    newbs_option_t *opt = config->option_list;
+    newbs_option_t *next = NULL;
+
+    while (opt)
+    {
+        free(opt->name);
+        free(opt->root);
+        free(opt->custom_command);
+
+        next = opt->next;
+        free(opt);
+        opt = next;
+    }
+
+    config->option_count = 0;
+    config->option_list = NULL;
+    config->default_option = NULL;
+    free(config->default_option_str);
 }
 
 int newbs_get_action(int argc, char **argv)
@@ -480,5 +526,6 @@ int newbs_dump_config(int argc, char **argv)
         printf("\n");
     }
 
+    newbs_config_cleanup(&config);
     return 0;
 }
