@@ -1,0 +1,60 @@
+#!/bin/bash -e
+#
+# Configure script for newbs-init
+#
+# Copyright 2017 Allen Wild <allenwild93@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+usage()
+{
+    echo "Usage: $0 [-h|--help] [DATE=date] [PV=pv]"
+}
+
+srcdir="$(dirname "$0")"
+
+# Default values
+if [[ -z "$DATE" ]]; then
+    DATE="$(date +%Y-%m-%d)"
+fi
+if [[ -z "$PV" ]]; then
+    PV="1.0"
+fi
+
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *=*)
+            var="$(cut -d= -f1 <<<"$arg")"
+            val="$(cut -d= -f2- <<<"$arg")"
+            eval "${var}='${val}'"
+            ;;
+        *)
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# sanitize values for using in sed
+DATE="${DATE//,/\\,}"
+PV="${PV//,/\\,}"
+
+rm -f newbs-init.sh
+sed -e "s,@DATE@,${DATE},g" \
+    -e "s,@PV@,${PV},g" \
+    <"$srcdir/newbs-init.sh.in" \
+    >"newbs-init.sh"
