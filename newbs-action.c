@@ -28,6 +28,7 @@
 #include "newbs-util.h"
 
 #define CMDLINE_ARG_SEARCH  "newbscmd="
+#define MAX_CMDLINE_SIZE    1024
 
 const char *action_type_strs[ACTION_TYPE_LAST] = {
     "INVALID",
@@ -62,26 +63,15 @@ static inline void print_actions(FILE *fp, newbs_config_t *config)
 
 static char* check_cmdline(void)
 {
-    FILE *fp = fopen("/proc/cmdline", "r");
-    if (!fp)
-        return NULL;
+    char buf[MAX_CMDLINE_SIZE] = {0};
+    FILE *fp;
 
-    fseek(fp, 0, SEEK_END);
-    long size = ftell(fp);
-    rewind(fp);
-
-    char *buf = malloc(size+1); // extra nullbyte
-    if (!buf)
-    {
-        ERROR("malloc failed");
-        fclose(fp);
+    if ((fp = fopen("/proc/cmdline", "r")) == NULL)
         return NULL;
-    }
 
     if (!fgets(buf, sizeof(buf), fp))
     {
         ERROR("fgets failed");
-        free(buf);
         fclose(fp);
         return NULL;
     }
@@ -98,7 +88,6 @@ static char* check_cmdline(void)
         retstr = strdup(startptr);
     }
 
-    free(buf);
     return retstr;
 }
 
@@ -126,6 +115,9 @@ int newbs_run_action(int argc, char **argv)
 
     fprintf(stderr, "Available Actions:\n");
     print_actions(stderr, config);
+
+    newbs_config_cleanup(config);
+    free(config);
 
     return 0;
 }
