@@ -24,7 +24,7 @@
 bool debug_enabled = false;
 
 const newbs_cmd_t commands[] = {
-    {"parse",   &newbs_get_action},
+    {"act",     &newbs_run_action},
     {"reboot",  &newbs_reboot},
     {"dump",    &newbs_dump_config},
     {NULL, NULL}

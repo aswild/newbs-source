@@ -28,46 +28,7 @@
 #include <string.h>
 #include "newbs-util.h"
 
-#define CMDLINE_ARG_SEARCH  "newbscmd="
 #define MAX_LINE_LENGTH     256
-
-#define DEFAULT_TIMEOUT      5
-#define DEFAULT_ERROR_ACTION OPTION_TYPE_RECOVERY
-
-typedef enum {
-    OPTION_TYPE_INVALID = 0,
-    OPTION_TYPE_CONTINUE,
-    OPTION_TYPE_REBOOT,
-    OPTION_TYPE_RECOVERY,
-    OPTION_TYPE_CUSTOM
-} option_type_e;
-
-const char *option_type_strs[] = {
-    "INVALID",
-    "CONTINUE",
-    "REBOOT",
-    "RECOVERY",
-    "CUSTOM"
-};
-
-typedef struct _newbs_option {
-    char            *name;
-    option_type_e   type;
-    char            *root;
-    int             reboot_part;
-    char            *custom_command;
-    struct _newbs_option *next;
-} newbs_option_t;
-
-typedef struct {
-    int             timeout;
-    option_type_e   error_action;
-    char            *default_option_str;
-    newbs_option_t  *default_option;
-
-    int             option_count;
-    newbs_option_t  *option_list;
-} newbs_config_t;
 
 typedef enum {
     LINE_TYPE_COMMENT,
@@ -80,48 +41,6 @@ typedef struct {
     char *key;
     char *value;
 } parsed_line_t;
-
-static char* check_cmdline(void)
-{
-    FILE *fp = fopen("/proc/cmdline", "r");
-    if (!fp)
-        return NULL;
-
-    fseek(fp, 0, SEEK_END);
-    long size = ftell(fp);
-    rewind(fp);
-
-    char *buf = malloc(size+1); // extra nullbyte
-    if (!buf)
-    {
-        ERROR("malloc failed");
-        fclose(fp);
-        return NULL;
-    }
-
-    if (!fgets(buf, sizeof(buf), fp))
-    {
-        ERROR("fgets failed");
-        free(buf);
-        fclose(fp);
-        return NULL;
-    }
-    fclose(fp);
-
-    char *retstr = NULL;
-    char *startptr = strcasestr(buf, CMDLINE_ARG_SEARCH);
-    if (startptr)
-    {
-        startptr += strlen(CMDLINE_ARG_SEARCH);
-        char *endptr = strchr(startptr, ' ');
-        if (endptr)
-            *endptr = '\0';
-        retstr = strdup(startptr);
-    }
-
-    free(buf);
-    return retstr;
-}
 
 /*
  * Find a pointer to the default option based on config->default_option_str
@@ -152,8 +71,7 @@ static newbs_option_t* find_default_option(newbs_config_t *config)
     else
     {
         // the default option value isn't a number, so it must be a name
-        opt = config->option_list;
-        for (int i = config->option_count; i > 0; i--, opt = opt->next)
+        for (opt = config->option_list; opt; opt=opt->next)
         {
             if (strcasecmp(config->default_option_str, opt->name))
                 return opt; // found a match
@@ -252,16 +170,16 @@ static int add_option_param(newbs_option_t *opt, char *key, char *value, bool *c
     if (!strcasecmp(key, "type"))
     {
         if (!strcasecmp(value, "continue"))
-            opt->type = OPTION_TYPE_CONTINUE;
+            opt->type = ACTION_TYPE_CONTINUE;
 
         else if (!strcasecmp(value, "reboot"))
-            opt->type = OPTION_TYPE_REBOOT;
+            opt->type = ACTION_TYPE_REBOOT;
 
         else if (!strcasecmp(value, "recovery"))
-            opt->type = OPTION_TYPE_RECOVERY;
+            opt->type = ACTION_TYPE_RECOVERY;
 
         else if (!strcasecmp(value, "custom"))
-            opt->type = OPTION_TYPE_CUSTOM;
+            opt->type = ACTION_TYPE_CUSTOM;
 
         else
         {
@@ -286,7 +204,7 @@ static int add_option_param(newbs_option_t *opt, char *key, char *value, bool *c
     }
     else if (!strcasecmp(key, "customcommand"))
     {
-        opt->custom_command = value;
+        opt->action_str = value;
         can_free[1] = false;
     }
     else
@@ -324,9 +242,9 @@ static int add_main_config_param(newbs_config_t *config, char *key, char *value,
     else if (!strcasecmp(key, "onerror"))
     {
         if (!strcasecmp(value, "continue"))
-            config->error_action = OPTION_TYPE_CONTINUE;
+            config->error_action = ACTION_TYPE_CONTINUE;
         else if (!strcasecmp(value, "recovery"))
-            config->error_action = OPTION_TYPE_RECOVERY;
+            config->error_action = ACTION_TYPE_RECOVERY;
         else
         {
             ERROR("Invalid OnError action '%s'", value);
@@ -341,7 +259,7 @@ static int add_main_config_param(newbs_config_t *config, char *key, char *value,
     return 0;
 }
 
-static int parse_config_file(const char *filename, newbs_config_t *config)
+int parse_config_file(const char *filename, newbs_config_t *config)
 {
     FILE *fp = NULL;
     char buf[MAX_LINE_LENGTH] = {0};
@@ -452,14 +370,14 @@ out:
     return ret;
 }
 
-static void newbs_config_init(newbs_config_t *config)
+void newbs_config_init(newbs_config_t *config)
 {
     memset(config, 0, sizeof(*config));
     config->timeout = DEFAULT_TIMEOUT;
     config->error_action = DEFAULT_ERROR_ACTION;
 }
 
-static void newbs_config_cleanup(newbs_config_t *config)
+void newbs_config_cleanup(newbs_config_t *config)
 {
     newbs_option_t *opt = config->option_list;
     newbs_option_t *next = NULL;
@@ -468,7 +386,7 @@ static void newbs_config_cleanup(newbs_config_t *config)
     {
         free(opt->name);
         free(opt->root);
-        free(opt->custom_command);
+        free(opt->action_str);
 
         next = opt->next;
         free(opt);
@@ -481,11 +399,24 @@ static void newbs_config_cleanup(newbs_config_t *config)
     free(config->default_option_str);
 }
 
-int newbs_get_action(int argc, char **argv)
+newbs_config_t* get_newbs_config(const char *filename)
 {
-    INFO("Enter");
-    printf("cmdline check: %s\n", check_cmdline());
-    return 0;
+    newbs_config_t *config = malloc(sizeof(*config));
+    if (!config)
+    {
+        ERROR("malloc failed");
+        return NULL;
+    }
+
+    newbs_config_init(config);
+    if (parse_config_file(filename, config))
+    {
+        ERROR("Failed to parse config");
+        free(config);
+        return NULL;
+    }
+
+    return config;
 }
 
 int newbs_dump_config(int argc, char **argv)
@@ -496,36 +427,32 @@ int newbs_dump_config(int argc, char **argv)
         return 1;
     }
 
-    newbs_config_t config;
-    newbs_config_init(&config);
-    if (parse_config_file(argv[0], &config))
-    {
-        ERROR("Failed to parse config");
+    newbs_config_t *config = get_newbs_config(argv[0]);
+    if (!config)
         return 1;
-    }
 
     printf("[NEWBS]\n");
-    if (config.default_option)
-        printf("Default=%s [%s=%s]\n", config.default_option_str, config.default_option->name,
-               option_type_strs[config.default_option->type]);
+    if (config->default_option)
+        printf("Default=%s [%s=%s]\n", config->default_option_str, config->default_option->name,
+               action_type_strs[config->default_option->type]);
     else
         printf("Default=(null)\n");
-    printf("Timeout=%d\n", config.timeout);
-    printf("OnError=%s\n", option_type_strs[config.error_action]);
+    printf("Timeout=%d\n", config->timeout);
+    printf("OnError=%s\n", action_type_strs[config->error_action]);
     printf("\n");
 
-    int i;
-    newbs_option_t *opt = config.option_list;
-    for (i = 0; i < config.option_count && opt; i++, opt = opt->next)
+    newbs_option_t *opt = config->option_list;
+    for (; opt; opt=opt->next)
     {
         printf("[%s]\n", opt->name);
-        printf("Type=%s\n", option_type_strs[opt->type]);
+        printf("Type=%s\n", action_type_strs[opt->type]);
         printf("Root=%s\n", opt->root);
         printf("RebootPart=%d\n", opt->reboot_part);
-        printf("CustomCommand=%s\n", opt->custom_command);
+        printf("CustomCommand=%s\n", opt->action_str);
         printf("\n");
     }
 
-    newbs_config_cleanup(&config);
+    newbs_config_cleanup(config);
+    free(config);
     return 0;
 }

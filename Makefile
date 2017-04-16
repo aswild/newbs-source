@@ -17,6 +17,7 @@
 TARGET  = newbs-util
 
 SOURCES = newbs-util.c \
+		  newbs-action.c \
 		  newbs-parse.c \
 		  newbs-reboot.c \
 
