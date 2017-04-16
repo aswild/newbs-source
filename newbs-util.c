@@ -18,18 +18,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 #include "newbs-util.h"
 
-extern int newbs_parse_conf(int argc, char **argv);
-extern int newbs_reboot(int argc, char **argv);
+bool debug_enabled = false;
 
 const newbs_cmd_t commands[] = {
-    {"parse",   &newbs_parse_conf},
+    {"parse",   &newbs_get_action},
     {"reboot",  &newbs_reboot},
+    {"dump",    &newbs_dump_config},
     {NULL, NULL}
 };
 
-static const newbs_cmd_t * get_cmd(const newbs_cmd_t *cmd_list, const char *str)
+static const newbs_cmd_t* get_cmd(const newbs_cmd_t *cmd_list, const char *str)
 {
     if (!cmd_list || !str)
         return NULL;
@@ -71,20 +72,37 @@ static inline void print_commands(FILE *fp, const newbs_cmd_t *cmd_list)
 
 static inline void usage(FILE *fp)
 {
-    fprintf(fp, "Usage: newbs-util.c COMMAND [ARGS...]\nAvailable Commands:\n");
+    fprintf(fp, "Usage: newbs-util.c [-d] COMMAND [ARGS...]\nAvailable Commands:\n");
     print_commands(fp, commands);
 }
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2)
+    int c;
+    while ((c = getopt(argc, argv, "d")) != -1)
+    {
+        switch (c)
+        {
+            case 'd':
+                debug_enabled = true;
+                break;
+
+            default:
+                ERROR("Invalid option '-%c'", c);
+                return 1;
+        }
+    }
+
+    DEBUG("optind is %d", optind);
+
+    if (argc < 1)
     {
         ERROR("No command");
         usage(stderr);
         return 1;
     }
 
-    const newbs_cmd_t *cmd = get_cmd(commands, argv[1]);
+    const newbs_cmd_t *cmd = get_cmd(commands, argv[optind]);
     if (!cmd)
     {
         ERROR("Invalid command");
@@ -92,6 +110,5 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    //return ((*int)(int,char**)(cmd->handler))(argc - 1, &argv[1]);
-    return cmd->handler(argc-1, &argv[1]);
+    return cmd->handler(argc - optind - 1, &argv[optind+1]);
 }

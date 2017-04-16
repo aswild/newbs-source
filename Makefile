@@ -23,19 +23,18 @@ SOURCES = newbs-util.c \
 OBJECTS = $(SOURCES:.c=.o)
 DEPS	= $(SOURCES:.c=.d)
 
-CC 		?= gcc
-CCLD	?= gcc
+CC 		= gcc
 
-CC_FLAGS = -Wall -Werror -g -O2 -MD -MP $(CFLAGS)
+CCFLAGS = -std=gnu99 -Wall -Werror -g -O2 -MD -MP $(CFLAGS)
 
-all: build
 build: $(TARGET)
+all: build
 
 $(TARGET): $(OBJECTS)
-	$(CCLD) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^
 
 %.o: %.c
-	$(CC) $(CC_FLAGS) -c -o $@ $<
+	$(CC) $(CCFLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(TARGET) $(OBJECTS) $(DEPS)

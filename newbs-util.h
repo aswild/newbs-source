@@ -17,19 +17,26 @@
 #ifndef _NEWBS_UTIL_H_
 #define _NEWBS_UTIL_H_
 
+#include <stdbool.h>
+
+extern bool debug_enabled;
+
 #define DEBUG(fmt, args...) do { \
     if (debug_enabled) { \
-        fprintf(stderr, "%s:%d: DEBUG: " fmt "\n", __func__, __LINE__, ##args); \
+        fprintf(stderr, "DEBUG %s:%d: " fmt "\n", __func__, __LINE__, ##args); \
     } } while (0)
 
-#define INFO(fmt, args...) fprintf(stderr, "%s:%d: INFO: " fmt "\n", __func__, __LINE__, ##args)
-#define ERROR(fmt, args...) fprintf(stderr, "%s:%d: ERROR: " fmt "\n", __func__, __LINE__, ##args)
-
-//typedef int (*newbs_util_handler_t)(int argc, char **argv);
+#define INFO(fmt, args...)      fprintf(stderr, "INFO %s:%d: "    fmt "\n", __func__, __LINE__, ##args)
+#define WARNING(fmt, args...)   fprintf(stderr, "WARNING %s:%d: " fmt "\n", __func__, __LINE__, ##args)
+#define ERROR(fmt, args...)     fprintf(stderr, "ERROR %s:%d: "   fmt "\n", __func__, __LINE__, ##args)
 
 typedef struct {
     const char  *name;
     int (*handler)(int argc, char **argv);
 } newbs_cmd_t;
+
+int newbs_get_action(int argc, char **argv);
+int newbs_reboot(int argc, char **argv);
+int newbs_dump_config(int argc, char **argv);
 
 #endif
