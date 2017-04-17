@@ -1,5 +1,5 @@
 #!/bin/sh
-# 
+#
 # Main NEWBS init script
 #
 # Copyright 2017 Allen Wild <allenwild93@gmail.com>
@@ -16,30 +16,177 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-PATH=/sbin:/bin:/usr/sbin:/usr/bin
+########################################################################
+# DEFINITIONS
+########################################################################
 
-mkdir -p /proc
-mkdir -p /sys
-mkdir -p /dev
+NEWBS_UTIL=/sbin/newbs-util
+NEWBSACT_CMDLINE_ARG=newbsaction
 
-mount -t proc proc /proc
-mount -t sysfs sysfs /sys
-mount -t devtmpfs none /dev
+NEWBSCONF_DEV=/dev/mmcblk0p1
+NEWBSCONF_MOUNT=/boot
+NEWBSCONF_FILE=$NEWBSCONF_MOUNT/newbs.txt
+NEWBSCONF_TMPFILE=/run/newbs.txt
 
-mkdir -p /run
-mkdir -p /var/run
+########################################################################
+# FUNCTIONS
+########################################################################
 
-/sbin/udevd --daemon
-udevadm trigger --action=add
-udevadm settle --timeout=3 --quiet
+# Print the value of a variable from /proc/cmdline
+# $1 - the name of the variable to get
+get_cmdline_arg()
+{
+    [ -n "$1" ] || return 1
+    if grep -q "\\b${1}=" </proc/cmdline; then
+        sed 's|^.*\b'"$1"'=\([^[:space:]]*\).*$|\1|' /proc/cmdline
+    else
+        return 0
+    fi
+}
 
-exec </dev/console >/dev/console 2>&1
+is_mounted()
+{
+    [ -n "$1" ] || return 1
+    grep -q "\\b${1}\\b" /proc/mounts
+}
 
-cat <<EOF
+die()
+{
+    if [ -n "$1" ]; then
+        echo "ERROR: $1"
+    else
+        echo "Something went wrong! Dropping to shell"
+    fi
+
+    if [ $$ == 1 ]; then
+        exec sh
+    else
+        exit 1
+    fi
+}
+
+early_setup()
+{
+    PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+    mkdir -p /proc
+    mkdir -p /sys
+    mkdir -p /dev
+
+    is_mounted /proc || mount -t proc proc /proc
+    is_mounted /sys  || mount -t sysfs sysfs /sys
+    is_mounted /dev  || mount -t devtmpfs none /dev
+
+    mkdir -p /run
+    mkdir -p /var/run
+
+    /sbin/udevd --daemon
+    udevadm trigger --action=add
+    udevadm settle --timeout=10
+
+    exec </dev/console >/dev/console 2>&1
+    trap die SIGINT SIGTERM
+}
+
+# continue booting with the current kernel
+# $1 - name of the rootfs device to boot. If none, look for root= in cmdline
+continue_boot()
+{
+    [ $$ == 1 ] || die "continue_boot only makes sense as PID 1. Use 'exec newbs-init' instead"
+
+    if [ -z "$1" ]; then
+        rootdev="$(get_cmdline_arg root)"
+    else
+        rootdev="$1"
+    fi
+    echo "$rootdev" | grep -q "^/dev/" || die "Bad root device name"
+    [ -b "$rootdev" ] || die "$rootdev is not a block device"
+
+    echo "Booting continuing to boot with root device $rootdev"
+
+    # kill udev to avoid unexpected behavior
+    killall -9 udevd
+
+    ROOT_MOUNT=/rootfs
+
+    if ! is_mounted $ROOT_MOUNT; then
+        mkdir -p $ROOT_MOUNT
+        mount $rootdev $ROOT_MOUNT
+    fi
+
+    # save off the cmdline
+    CMDLINE="$(cat /proc/cmdline)"
+
+    mkdir -p $ROOT_MOUNT/proc $ROOT_MOUNT/sys $ROOT_MOUNT/dev
+    mount --move /proc $ROOT_MOUNT/proc
+    mount --move /sys $ROOT_MOUNT/sys
+    mount --move /dev $ROOT_MOUNT/dev
+
+    cd $ROOT_MOUNT
+
+    # here we go
+    exec switch_root -c /dev/console $ROOT_MOUNT /sbin/init $CMDLINE || die "switch_root failed"
+}
+
+run_action()
+{
+    [ -n "$1" ] || return 1
+
+    case "$1" in
+        continue)
+            continue_boot
+            ;;
+        continue:*)
+            continue_boot $(echo "$action" | cut -d: -f2)
+            ;;
+        reboot:*)
+            part=$(echo "$action" | cut -d: -f2)
+            echo "Reboot to partition $part"
+            $NEWBS_UTIL reboot $part
+            ;;
+        poweroff)
+            echo "Powering off"
+            $NEWBS_UTIL reboot 63
+            ;;
+        recoveryshell)
+            echo "Dropping to shell"
+            exec sh
+            ;;
+        *)
+            die "Invalid action: '$action'"
+            ;;
+    esac
+}
+
+########################################################################
+# SETUP
+########################################################################
+
+set -e
+
+if [ $$ == 1 ]; then
+    early_setup
+    cat <<EOF
 *************************************
           Welcome to NEWBS!
-          Version @PV@ (@DATE@)
+        Version @PV@ (@DATE@)
 *************************************
 EOF
+fi
 
-exec sh
+########################################################################
+# GET AND RUN ACTION
+########################################################################
+
+action="$(get_cmdline_arg $NEWBSACT_CMDLINE_ARG)"
+if [ -z "$action" ]; then
+    if ! grep -q "\\b$NEWBSCONF_MOUNT\\b" /proc/cmdline; then
+        mount $NEWBSCONF_DEV $NEWBSCONF_MOUNT
+    fi
+    cp -f $NEWBSCONF_FILE $NEWBSCONF_TMPFILE
+    umount $NEWBSCONF_DEV
+    action="$($NEWBS_UTIL act $NEWBSCONF_TMPFILE)"
+    [ -n "$action" ] || die "No action to run"
+fi
+
+run_action "$action"
