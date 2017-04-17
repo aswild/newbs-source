@@ -17,7 +17,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <unistd.h>
 #include "newbs-util.h"
 
@@ -111,4 +113,16 @@ int main(int argc, char *argv[])
     }
 
     return cmd->handler(argc - optind - 1, &argv[optind+1]);
+}
+
+// check the weird error handling of strtol, returning 0 or negative
+// and storing the parsed value into *value.
+// Based on the example code in `man 3 strtol`
+int check_strtol(const char *str, int base, long *value)
+{
+    char *endptr = NULL;
+
+    errno = 0;
+    *value = strtol(str, &endptr, base);
+    return (errno || endptr == str) ? -1 : 0;
 }

@@ -53,9 +53,8 @@ static newbs_option_t* find_default_option(newbs_config_t *config)
     newbs_option_t *opt = NULL;
 
     // first see if default_option_str can be parsed as an integer
-    errno = 0;
-    long index = strtol(config->default_option_str, NULL, 0);
-    if (!errno)
+    long index;
+    if (!check_strtol(config->default_option_str, 0, &index))
     {
         // yep, it's a number
         if (index < 0 || index >= config->option_count)
@@ -194,9 +193,8 @@ static int add_option_param(newbs_option_t *opt, char *key, char *value, bool *c
     }
     else if (!strcasecmp(key, "rebootpart"))
     {
-        errno = 0;
-        opt->reboot_part = (int)strtol(value, NULL, 0);
-        if (errno || opt->reboot_part > 63)
+        int err = check_strtoi(value, 0, &opt->reboot_part);
+        if (err || opt->reboot_part > 63)
         {
             ERROR("Invalid reboot partition '%s'", value);
             return -1;
@@ -231,9 +229,7 @@ static int add_main_config_param(newbs_config_t *config, char *key, char *value,
     }
     else if (!strcasecmp(key, "timeout"))
     {
-        errno = 0;
-        config->timeout = (int)strtol(value, NULL, 0);
-        if (errno)
+        if (check_strtoi(value, 0, &config->timeout))
         {
             ERROR("Invalid timeout value '%s'", value);
             return -1;

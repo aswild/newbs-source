@@ -76,4 +76,16 @@ void newbs_config_cleanup(newbs_config_t *config);
 newbs_config_t* get_newbs_config(const char *filename);
 int parse_config_file(const char *filename, newbs_config_t *config);
 
-#endif
+int check_strtol(const char *str, int base, long *value);
+static inline int check_strtoi(const char *str, int base, int *value)
+{
+    long lval;
+    int err;
+
+    err = check_strtol(str, base, &lval);
+    if (!err)
+        *value = (int)lval;
+    return err;
+}
+
+#endif // _NEWBS_UTIL_H_
