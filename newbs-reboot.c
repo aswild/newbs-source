@@ -15,13 +15,37 @@
  *******************************************************************************/
 
 #include <stdio.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
+#include <unistd.h>
 #include "newbs-util.h"
+
+// Don't actually try to reboot if we're compiling natively to test
+#ifdef __arm__
+#include <linux/reboot.h>
+#include <sys/reboot.h>
+#include <sys/syscall.h>
+#endif
 
 int newbs_reboot(int argc, char **argv)
 {
-    INFO("Enter");
+    long cmd = 0;
+    char buf[3] = {0}; // 2 digits and a nullbyte
+
+    if (argc > 0)
+    {
+        int err = check_strtol(argv[0], 0, &cmd);
+        if (err || cmd < 0 || cmd > 63)
+        {
+            ERROR("Invalid reboot command: '%s'", argv[0]);
+            return 1;
+        }
+    }
+
+    snprintf(buf, sizeof(buf), "%ld", cmd);
+
+#ifdef __arm__
+    syscall(SYS_reboot, LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2, LINUX_REBOOT_CMD_RESTART2, buf);
+#else
+    INFO("Reboot with command %s", buf);
+#endif
     return 0;
 }
