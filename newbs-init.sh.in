@@ -21,14 +21,13 @@
 ########################################################################
 
 NEWBS_UTIL=/sbin/newbs-util
-NEWBSACT_CMDLINE_ARG=newbsaction
 
-NEWBSCONF_DEV=/dev/mmcblk0p1
-NEWBSCONF_MOUNT=/boot
-NEWBSCONF_FILE=$NEWBSCONF_MOUNT/newbs.txt
+NEWBSCONF_DEV_DEFAULT=/dev/mmcblk0p1
+NEWBSCONF_MOUNT=/newbsconf
+NEWBSCONF_FILE_DEFAULT=newbs.txt
 NEWBSCONF_TMPFILE=/run/newbs.txt
+NEWBSCONF_FALLBACK=/usr/share/newbs.default.txt
 
-########################################################################
 # FUNCTIONS
 ########################################################################
 
@@ -67,8 +66,6 @@ die()
 
 early_setup()
 {
-    PATH=/sbin:/bin:/usr/sbin:/usr/bin
-
     mkdir -p /proc
     mkdir -p /sys
     mkdir -p /dev
@@ -83,9 +80,6 @@ early_setup()
     /sbin/udevd --daemon
     udevadm trigger --action=add
     udevadm settle --timeout=10
-
-    exec </dev/console >/dev/console 2>&1
-    trap die SIGINT SIGTERM
 }
 
 # continue booting with the current kernel
@@ -162,7 +156,7 @@ run_action()
 # SETUP
 ########################################################################
 
-set -e
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
 if [ $$ == 1 ]; then
     early_setup
@@ -172,19 +166,59 @@ if [ $$ == 1 ]; then
         Version @PV@ (@DATE@)
 *************************************
 EOF
+    exec </dev/console >/dev/console 2>&1
+    trap die SIGINT SIGTERM
 fi
 
 ########################################################################
 # GET AND RUN ACTION
 ########################################################################
+# Look for:
+# 1. The arg passed to newbs-init
+# 2. newbsaction=ACTION in kernel cmdline
+# 3. Load newbs.txt and let the user select something
 
-action="$(get_cmdline_arg $NEWBSACT_CMDLINE_ARG)"
+#action="$1"
+[ -n "$action" ] || action="$(get_cmdline_arg newbsaction)"
 if [ -z "$action" ]; then
-    if ! grep -q "\\b$NEWBSCONF_MOUNT\\b" /proc/cmdline; then
-        mount $NEWBSCONF_DEV $NEWBSCONF_MOUNT
+    # determine the partition to mount
+    newbsconf_cmdline="$(get_cmdline_arg newbsconf)"
+    if [ -n "$newbsconf_cmdline" ]; then
+        case "$newbsconf_cmdline" in
+            /dev/*,*)
+                newbsconf_dev=$(echo "$newbsconf_cmdline" | cut -d, -f1)
+                newbsconf_file=$(echo "$newbsconf_cmdline" | cut -d, -f2-)
+                ;;
+            *,*)
+                newbsconf_dev=/dev/$(echo "$newbsconf_cmdline" | cut -d, -f1)
+                newbsconf_file=$(echo "$newbsconf_cmdline" | cut -d, -f2-)
+                ;;
+            /dev/*)
+                newbsconf_dev="$newbsconf_cmdline"
+                newbsconf_file=$NEWBSCONF_FILE_DEFAULT
+                ;;
+            *)
+                newbsconf_dev=/dev/$newbsconf_cmdline
+                newbsconf_file=$NEWBSCONF_FILE_DEFAULT
+                ;;
+        esac
+    else
+        newbsconf_dev=$NEWBSCONF_DEV_DEFAULT
+        newbsconf_file=$NEWBSCONF_FILE_DEFAULT
     fi
-    cp -f $NEWBSCONF_FILE $NEWBSCONF_TMPFILE
-    umount $NEWBSCONF_DEV
+
+    if ! is_mounted $NEWBSCONF_MOUNT; then
+        mkdir -p $NEWBSCONF_MOUNT
+        mount $newbsconf_dev $NEWBSCONF_MOUNT
+    fi
+
+    if [ -f $NEWBSCONF_MOUNT/$newbsconf_file ]; then
+        cp -f $NEWBSCONF_MOUNT/$newbsconf_file $NEWBSCONF_TMPFILE
+    else
+        cp -f $NEWBSCONF_FALLBACK $NEWBSCONF_TMPFILE
+    fi
+    umount $NEWBSCONF_MOUNT
+
     action="$($NEWBS_UTIL act $NEWBSCONF_TMPFILE)"
     [ -n "$action" ] || die "No action to run"
 fi

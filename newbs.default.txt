@@ -1,0 +1,5 @@
+[NEWBS]
+Default=0
+
+[Newbs Main]
+Type=continue
