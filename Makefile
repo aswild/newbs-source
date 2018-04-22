@@ -24,16 +24,13 @@ SOURCES = newbs-util.c \
 OBJECTS = $(SOURCES:.c=.o)
 DEPS	= $(SOURCES:.c=.d)
 
-CC 		= gcc
-
 CC_FLAGS = -std=gnu11 -Wall -Werror -g -O2 -MD -MP $(CFLAGS)
-LD_FLAGS = -Wall -O2 $(LDFLAGS)
 
 build: $(TARGET)
 all: build
 
 $(TARGET): $(OBJECTS)
-	$(CC) $(LD_FLAGS) -o $@ $^
+	$(CC) $(CC_FLAGS) $(LDFLAGS) -o $@ $^
 
 %.o: %.c
 	$(CC) $(CC_FLAGS) -c -o $@ $<
