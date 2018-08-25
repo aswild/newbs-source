@@ -1,0 +1,5 @@
+*.d
+*.o
+*.swp
+newbs-init.sh
+newbs-util

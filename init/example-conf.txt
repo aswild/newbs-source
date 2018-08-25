@@ -1,0 +1,16 @@
+# this is a comment
+
+[NEWBS]
+Default=0
+Timeout=7
+
+[Newbs Main]
+Type=continue
+
+[Raspbian]
+Type=reboot
+RebootPart=6
+
+[Raspbian (Newbs Kernel)]
+Type=continue
+Root=/dev/mmcblk0p7

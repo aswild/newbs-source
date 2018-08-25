@@ -1,0 +1,226 @@
+#!/bin/sh
+#
+# Main NEWBS init script
+#
+# Copyright 2017 Allen Wild <allenwild93@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+########################################################################
+# DEFINITIONS
+########################################################################
+
+NEWBS_UTIL=/sbin/newbs-util
+
+NEWBSCONF_DEV_DEFAULT=/dev/mmcblk0p1
+NEWBSCONF_MOUNT=/newbsconf
+NEWBSCONF_FILE_DEFAULT=newbs.txt
+NEWBSCONF_TMPFILE=/run/newbs.txt
+NEWBSCONF_FALLBACK=/usr/share/newbs.default.txt
+
+# FUNCTIONS
+########################################################################
+
+# Print the value of a variable from /proc/cmdline
+# $1 - the name of the variable to get
+get_cmdline_arg()
+{
+    [ -n "$1" ] || return 1
+    if grep -q "\\b${1}=" </proc/cmdline; then
+        sed 's|^.*\b'"$1"'=\([^[:space:]]*\).*$|\1|' /proc/cmdline
+    else
+        return 0
+    fi
+}
+
+is_mounted()
+{
+    [ -n "$1" ] || return 1
+    grep -q "\\b${1}\\b" /proc/mounts
+}
+
+die()
+{
+    if [ -n "$1" ]; then
+        echo "ERROR: $1"
+    else
+        echo "Something went wrong! Dropping to shell"
+    fi
+
+    if [ $$ == 1 ]; then
+        exec sh
+    else
+        exit 1
+    fi
+}
+
+early_setup()
+{
+    mkdir -p /proc
+    mkdir -p /sys
+    mkdir -p /dev
+
+    is_mounted /proc || mount -t proc proc /proc
+    is_mounted /sys  || mount -t sysfs sysfs /sys
+    is_mounted /dev  || mount -t devtmpfs none /dev
+
+    mkdir -p /run
+    mkdir -p /var/run
+
+    /sbin/udevd --daemon
+    udevadm trigger --action=add
+    udevadm settle --timeout=10
+}
+
+# continue booting with the current kernel
+# $1 - name of the rootfs device to boot. If none, look for root= in cmdline
+continue_boot()
+{
+    [ $$ == 1 ] || die "continue_boot only makes sense as PID 1. Use 'exec newbs-init' instead"
+
+    if [ -z "$1" ]; then
+        rootdev="$(get_cmdline_arg root)"
+    else
+        rootdev="$1"
+    fi
+    echo "$rootdev" | grep -q "^/dev/" || die "Bad root device name"
+    [ -b "$rootdev" ] || die "$rootdev is not a block device"
+
+    echo "Booting continuing to boot with root device $rootdev"
+
+    # kill udev to avoid unexpected behavior
+    killall -9 udevd
+
+    ROOT_MOUNT=/rootfs
+
+    if ! is_mounted $ROOT_MOUNT; then
+        mkdir -p $ROOT_MOUNT
+        mount $rootdev $ROOT_MOUNT
+    fi
+
+    # save off the cmdline
+    CMDLINE="$(cat /proc/cmdline)"
+
+    mkdir -p $ROOT_MOUNT/proc $ROOT_MOUNT/sys $ROOT_MOUNT/dev
+    mount --move /proc $ROOT_MOUNT/proc
+    mount --move /sys $ROOT_MOUNT/sys
+    mount --move /dev $ROOT_MOUNT/dev
+
+    cd $ROOT_MOUNT
+
+    # here we go
+    exec switch_root -c /dev/console $ROOT_MOUNT /sbin/init $CMDLINE || die "switch_root failed"
+}
+
+run_action()
+{
+    [ -n "$1" ] || return 1
+
+    case "$1" in
+        continue)
+            continue_boot
+            ;;
+        continue:*)
+            continue_boot $(echo "$action" | cut -d: -f2)
+            ;;
+        reboot:*)
+            part=$(echo "$action" | cut -d: -f2)
+            echo "Reboot to partition $part"
+            $NEWBS_UTIL reboot $part
+            ;;
+        poweroff)
+            echo "Powering off"
+            $NEWBS_UTIL reboot 63
+            ;;
+        recoveryshell)
+            echo "Dropping to shell"
+            exec sh
+            ;;
+        *)
+            die "Invalid action: '$action'"
+            ;;
+    esac
+}
+
+########################################################################
+# SETUP
+########################################################################
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+if [ $$ == 1 ]; then
+    early_setup
+    cat <<EOF
+*************************************
+          Welcome to NEWBS!
+        Version @PV@ (@DATE@)
+*************************************
+EOF
+    exec </dev/console >/dev/console 2>&1
+    trap die SIGINT SIGTERM
+fi
+
+########################################################################
+# GET AND RUN ACTION
+########################################################################
+# Look for:
+# 1. The arg passed to newbs-init
+# 2. newbsaction=ACTION in kernel cmdline
+# 3. Load newbs.txt and let the user select something
+
+#action="$1"
+[ -n "$action" ] || action="$(get_cmdline_arg newbsaction)"
+if [ -z "$action" ]; then
+    # determine the partition to mount
+    newbsconf_cmdline="$(get_cmdline_arg newbsconf)"
+    if [ -n "$newbsconf_cmdline" ]; then
+        case "$newbsconf_cmdline" in
+            /dev/*,*)
+                newbsconf_dev=$(echo "$newbsconf_cmdline" | cut -d, -f1)
+                newbsconf_file=$(echo "$newbsconf_cmdline" | cut -d, -f2-)
+                ;;
+            *,*)
+                newbsconf_dev=/dev/$(echo "$newbsconf_cmdline" | cut -d, -f1)
+                newbsconf_file=$(echo "$newbsconf_cmdline" | cut -d, -f2-)
+                ;;
+            /dev/*)
+                newbsconf_dev="$newbsconf_cmdline"
+                newbsconf_file=$NEWBSCONF_FILE_DEFAULT
+                ;;
+            *)
+                newbsconf_dev=/dev/$newbsconf_cmdline
+                newbsconf_file=$NEWBSCONF_FILE_DEFAULT
+                ;;
+        esac
+    else
+        newbsconf_dev=$NEWBSCONF_DEV_DEFAULT
+        newbsconf_file=$NEWBSCONF_FILE_DEFAULT
+    fi
+
+    if ! is_mounted $NEWBSCONF_MOUNT; then
+        mkdir -p $NEWBSCONF_MOUNT
+        mount $newbsconf_dev $NEWBSCONF_MOUNT
+    fi
+
+    if [ -f $NEWBSCONF_MOUNT/$newbsconf_file ]; then
+        cp -f $NEWBSCONF_MOUNT/$newbsconf_file $NEWBSCONF_TMPFILE
+    else
+        cp -f $NEWBSCONF_FALLBACK $NEWBSCONF_TMPFILE
+    fi
+    umount $NEWBSCONF_MOUNT
+
+    action="$($NEWBS_UTIL act $NEWBSCONF_TMPFILE)"
+    [ -n "$action" ] || die "No action to run"
+fi
+
+run_action "$action"
