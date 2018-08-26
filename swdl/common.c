@@ -64,10 +64,10 @@ void print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp)
 {
     if (prefix == NULL)
         prefix = "";
-    fprintf(fp, "%stype:   %s\n",           prefix, part_name_from_type(p->type));
-    fprintf(fp, "%ssize:   %lu (0x%lx)\n",  prefix, p->size, p->size);
-    fprintf(fp, "%soffset: %lu (0x%lx)\n",  prefix, p->offset, p->offset);
-    fprintf(fp, "%scrc32:  0x%x\n",         prefix, p->crc32);
+    fprintf(fp, "%stype:   %s\n",          prefix, part_name_from_type(p->type));
+    fprintf(fp, "%ssize:   %lu (0x%lx)\n", prefix, (unsigned long)p->size, (unsigned long)p->size);
+    fprintf(fp, "%soffset: %lu (0x%lx)\n", prefix, (unsigned long)p->offset, (unsigned long)p->offset);
+    fprintf(fp, "%scrc32:  0x%x\n",        prefix, p->crc32);
 }
 
 // check the weird error handling of strtol, returning 0 or negative

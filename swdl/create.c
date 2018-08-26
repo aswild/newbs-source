@@ -163,7 +163,7 @@ int cmd_create(int argc, char **argv)
         {
             size_t to_read = MIN(buf_size, sb.st_size - part_read);
             ssize_t nread = fread(buf, 1, to_read, part_fp);
-            log_debug("read %ld/%ld bytes from %s", nread, sb.st_size, files[i].filename);
+            log_debug("read %ld/%ld bytes from %s", (long)nread, sb.st_size, files[i].filename);
             if (nread < 1)
             {
                 int old_errno = errno;
