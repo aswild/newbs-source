@@ -5,8 +5,9 @@ INSTALL ?= install
 prefix  ?= /usr/local
 bindir  ?= $(prefix)/bin
 
+CFLAGS     ?= -O2 -pipe -g
 AM_CPPFLAGS = -D_GNU_SOURCE
-AM_CFLAGS   = -std=gnu11 -Wall -Wextra -Werror -g -O2
+AM_CFLAGS   = -std=gnu11 -Wall -Wextra -Werror
 ifneq ($(LTO),0)
 AM_CFLAGS += -flto
 endif
