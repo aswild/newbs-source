@@ -122,6 +122,8 @@ extern void xcrc32(uint32_t *_crc, const uint8_t *buf, ssize_t len);
 // from common.c
 nimg_ptype_e part_type_from_name(const char *name);
 const char * part_name_from_type(nimg_ptype_e id);
+void nimg_hdr_init(nimg_hdr_t *h);
+void print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp);
 int check_strtol(const char *str, int base, long *value);
 extern FILE * open_file(const char *name, const char *mode);
 

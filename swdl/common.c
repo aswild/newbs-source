@@ -52,6 +52,24 @@ const char * part_name_from_type(nimg_ptype_e id)
     return NULL;
 }
 
+void nimg_hdr_init(nimg_hdr_t *h)
+{
+    memset(h, 0, sizeof(*h));
+    h->magic = NIMG_HDR_MAGIC;
+    h->ver_major = NIMG_VER_MAJOR;
+    h->ver_minor = NIMG_VER_MINOR;
+}
+
+void print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp)
+{
+    if (prefix == NULL)
+        prefix = "";
+    fprintf(fp, "%stype:   %s\n",           prefix, part_name_from_type(p->type));
+    fprintf(fp, "%ssize:   %lu (0x%lx)\n",  prefix, p->size, p->size);
+    fprintf(fp, "%soffset: %lu (0x%lx)\n",  prefix, p->offset, p->offset);
+    fprintf(fp, "%scrc32:  0x%x\n",         prefix, p->crc32);
+}
+
 // check the weird error handling of strtol, returning 0 or negative
 // and storing the parsed value into *value.
 // Based on the example code in `man 3 strtol`
