@@ -17,6 +17,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <assert.h>
 
@@ -51,6 +52,18 @@ const char * part_name_from_type(nimg_ptype_e id)
     return NULL;
 }
 
+// check the weird error handling of strtol, returning 0 or negative
+// and storing the parsed value into *value.
+// Based on the example code in `man 3 strtol`
+int check_strtol(const char *str, int base, long *value)
+{
+    char *endptr = NULL;
+
+    errno = 0;
+    *value = strtol(str, &endptr, base);
+    return (errno || endptr == str) ? -1 : 0;
+}
+
 FILE * open_file(const char *name, const char *mode)
 {
     if (!strcmp(name, "-"))
@@ -61,9 +74,11 @@ FILE * open_file(const char *name, const char *mode)
 void cmd_help_crc32(void)
 {
     static const char msg[] =
-        "    usage: mknImage crc32 FILE\n"
+        "    usage: mknImage crc32 FILE [SIZE]\n"
         "    Prints the crc32 of FILE in 0x00000000 format\n"
-        "    FILE can be '-' to use stdin\n";
+        "    FILE: can be '-' to use stdin\n"
+        "    SIZE: checksum first SIZE bytes\n"
+    "";
     fputs(msg, stdout);
 }
 
@@ -77,19 +92,33 @@ int cmd_crc32(int argc, char **argv)
     if (fp == NULL)
         DIE_ERRNO("Failed to open file %s", filename);
 
+    long crc_len = -1;
+    if (argc > 2)
+    {
+        if ((check_strtol(argv[2], 0, &crc_len) < 0) || (crc_len <= 0))
+            DIE("Invalid SIZE argument '%s'", argv[2]);
+    }
+
     const size_t buf_size = 8192;
     uint8_t *buf = malloc(buf_size);
     assert(buf != NULL);
 
     uint32_t crc = 0;
-    size_t nread;
-    while ((nread = fread(buf, 1, buf_size, fp)) > 0)
+    size_t total_read = 0;
+    while (true)
     {
+        ssize_t to_read = (crc_len > 0) ? MIN(buf_size, crc_len - total_read) : buf_size;
+        ssize_t nread = fread(buf, 1, to_read, fp);
+        if (nread <= 0)
+            break;
         xcrc32(&crc, buf, nread);
+        total_read += nread;
     }
     free(buf);
-    if (!feof(fp))
-        DIE("Failed to read file %s", filename);
+    bool read_error = ((crc_len < 0) && !feof(fp)) || ((crc_len > 0) && (total_read < crc_len));
+    fclose(fp);
+    if (read_error)
+        DIE("Failed to read file %s. Expected %ld bytes but got only %zu", filename, crc_len, total_read);
 
     printf("0x%08x\n", crc);
 

@@ -102,9 +102,20 @@ typedef struct {
 extern void xcrc32(uint32_t *_crc, const uint8_t *buf, ssize_t len);
 
 // from common.c
-extern FILE * open_file(const char *name, const char *mode);
 nimg_ptype_e part_type_from_name(const char *name);
 const char * part_name_from_type(nimg_ptype_e id);
+int check_strtol(const char *str, int base, long *value);
+extern FILE * open_file(const char *name, const char *mode);
+
+#define MIN(a, b) \
+  ({ typeof (a) _a = (a); \
+     typeof (b) _b = (b); \
+     _a < _b ? _a : _b; })
+
+#define MAX(a, b) \
+  ({ typeof (a) _a = (a); \
+     typeof (b) _b = (b); \
+     _a > _b ? _a : _b; })
 
 // command handlers with a side of macro magic
 #define CMD_LIST(xform) \
