@@ -115,7 +115,8 @@ int cmd_crc32(int argc, char **argv)
         total_read += nread;
     }
     free(buf);
-    bool read_error = ((crc_len < 0) && !feof(fp)) || ((crc_len > 0) && (total_read < crc_len));
+    bool read_error = ((crc_len < 0) && !feof(fp)) ||
+                       ((crc_len > 0) && ((ssize_t)total_read < crc_len));
     fclose(fp);
     if (read_error)
         DIE("Failed to read file %s. Expected %ld bytes but got only %zu", filename, crc_len, total_read);

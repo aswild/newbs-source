@@ -6,7 +6,10 @@ prefix  ?= /usr/local
 bindir  ?= $(prefix)/bin
 
 AM_CPPFLAGS = -D_GNU_SOURCE
-AM_CFLAGS   = -std=gnu11 -g -O2 -flto -Wall -Werror
+AM_CFLAGS   = -std=gnu11 -Wall -Wextra -Werror -g -O2
+ifneq ($(LTO),0)
+AM_CFLAGS += -flto
+endif
 
 CC_PROGRAMS = mknImage
 mknImage_SOURCES = mknImage.c common.c create.c crc32.c
