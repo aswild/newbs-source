@@ -85,7 +85,7 @@ void cmd_help_crc32(void)
 int cmd_crc32(int argc, char **argv)
 {
     if (argc < 2)
-        USAGE_ERROR("crc32 command requires an argument");
+        DIE_USAGE("crc32 command requires an argument");
 
     const char *filename = argv[1];
     FILE *fp = open_file(filename, "r");

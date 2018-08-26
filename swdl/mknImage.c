@@ -33,6 +33,8 @@ static const char usage_text[] =
     "OPTIONS:\n"
     " -h  Show this help text\n"
     " -V  Show program version\n"
+    " -D  Enable verbose debug outpus\n"
+    " -q  Be more quiet\n"
 "";
 
 static void print_version(void)
@@ -64,7 +66,7 @@ static const cmd_t * find_cmd(const char *name)
 int main(int argc, char *argv[])
 {
     int opt;
-    while ((opt = getopt(argc, argv, "+hV")) != -1)
+    while ((opt = getopt(argc, argv, "+hVDq")) != -1)
     {
         switch (opt)
         {
@@ -72,14 +74,18 @@ int main(int argc, char *argv[])
                 usage();
                 exit(0);
                 break;
-
             case 'V':
                 print_version();
                 exit(0);
                 break;
-
+            case 'D':
+                log_level = LOG_LEVEL_DEBUG;
+                break;
+            case 'q':
+                log_level = LOG_LEVEL_ERROR;
+                break;
             default:
-                USAGE_ERROR("unknown option '%c'", opt);
+                DIE_USAGE("unknown option '%c'", opt);
                 break;
         }
     }
@@ -95,7 +101,7 @@ int main(int argc, char *argv[])
 
     const cmd_t *cmd = find_cmd(argv[0]);
     if (cmd == NULL)
-        USAGE_ERROR("Unknown command %s", argv[0]);
+        DIE_USAGE("Unknown command %s", argv[0]);
 
     return cmd->handler(argc, argv);
 }

@@ -12,7 +12,7 @@ AM_CFLAGS += -flto
 endif
 
 CC_PROGRAMS = mknImage
-mknImage_SOURCES = mknImage.c common.c create.c crc32.c
+mknImage_SOURCES = mknImage.c common.c create.c crc32.c log.c
 
 INSTALL_BIN = $(CC_PROGRAMS)
 

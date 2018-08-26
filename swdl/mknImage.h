@@ -37,14 +37,28 @@
 #error "mknImage requires a C11 compiler and static_assert"
 #endif
 
-#define USAGE_ERROR(fmt, args...) do { \
+typedef enum {
+    LOG_LEVEL_NONE,
+    LOG_LEVEL_ERROR,
+    LOG_LEVEL_WARN,
+    LOG_LEVEL_INFO,
+    LOG_LEVEL_DEBUG,
+} log_level_e;
+extern log_level_e log_level;
+
+extern void log_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+extern void log_warn (const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+extern void log_info (const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+extern void log_debug(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+#define DIE_USAGE(fmt, args...) do { \
         fprintf(stderr, "Error: " fmt "\nRun `mknImage -h` for usage information\n", ##args); \
         exit(2); \
     } while(0)
 
 #define DIE(fmt, args...) do { \
         fprintf(stderr, "Error: " fmt "\n", ##args); \
-        exit(2); \
+        exit(1); \
     } while(0)
 
 #define DIE_ERRNO(fmt, args...) do { \
