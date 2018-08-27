@@ -28,6 +28,10 @@
 
 #include "mknImage.h"
 
+// padding/alignment between images
+#define PART_ALIGN 16
+static const char part_align_buf[PART_ALIGN] = {0};
+
 typedef struct {
     const char   *filename;
     nimg_ptype_e type;
@@ -177,13 +181,21 @@ int cmd_create(int argc, char **argv)
         hdr.parts[i].offset = parts_bytes;
         hdr.parts[i].type   = files[i].type;
         hdr.parts[i].crc32  = crc;
-        parts_bytes += sb.st_size;
 
         if (log_level >= LOG_LEVEL_INFO)
         {
             fprintf(stderr, "Part %d\n  file:   %s\n", i, files[i].filename);
             print_part_info(&hdr.parts[i], "  ", stderr);
+        }
 
+        parts_bytes += sb.st_size;
+        unsigned int padding = (16 - (parts_bytes % 16)) % 16;
+        log_debug("adding %u bytes of padding", padding);
+        if (padding > 0)
+        {
+            if (write(img_fd, part_align_buf, padding) != (ssize_t)padding)
+                DIE_ERRNO("failed to write %u padding bytes between images", padding);
+            parts_bytes += padding;
         }
     }
     free(buf);
