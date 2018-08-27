@@ -23,7 +23,9 @@
 
 #include "mknImage.h"
 
-#define MKNIMAGE_VERSION "1.0"
+#ifndef PACKAGE_VERSION
+#define PACKAGE_VERSION "1.0-noautoconf"
+#endif
 
 static const DECLARE_CMD_TABLE(cmd_table);
 
@@ -39,7 +41,7 @@ static const char usage_text[] =
 
 static void print_version(void)
 {
-    fputs("mknImage version " MKNIMAGE_VERSION "\n", stdout);
+    fputs("mknImage version " PACKAGE_VERSION "\n", stdout);
 }
 
 static void usage(void)

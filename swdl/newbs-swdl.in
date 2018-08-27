@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# variables set by autoconf.
+# autoconf doesn't expand '${prefix}' in dir variables so we have
+# to subst that into the shell too
+VERSION="@PACKAGE_VERSION@"
+prefix="@prefix@"
+exec_prefix="@exec_prefix@"
+NEWBS_SWDL_FUNCTIONS="@datadir@/@PACKAGE@/newbs-functions.sh"
+
+. "$NEWBS_SWDL_FUNCTIONS"
+
+echo "newbs-swdl placeholder"
+swdl_functions_hello

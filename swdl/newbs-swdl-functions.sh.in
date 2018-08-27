@@ -1,0 +1,5 @@
+#!/bin/bash
+
+swdl_functions_hello() {
+    echo "newbs-swdl functions placeholder"
+}
