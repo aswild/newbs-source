@@ -50,24 +50,10 @@ int cmd_crc32(int argc, char **argv)
             DIE("Invalid SIZE argument '%s'", argv[2]);
     }
 
-    const size_t buf_size = 8192;
-    uint8_t *buf = malloc(buf_size);
-    assert(buf != NULL);
-
     uint32_t crc = 0;
-    size_t total_read = 0;
-    while (true)
-    {
-        ssize_t to_read = (crc_len > 0) ? MIN(buf_size, crc_len - total_read) : buf_size;
-        ssize_t nread = fread(buf, 1, to_read, fp);
-        if (nread <= 0)
-            break;
-        xcrc32(&crc, buf, nread);
-        total_read += nread;
-    }
-    free(buf);
-    bool read_error = ((crc_len < 0) && !feof(fp)) ||
-                       ((crc_len > 0) && ((ssize_t)total_read < crc_len));
+    size_t total_read = file_crc32(&crc, crc_len, fp);
+    bool read_error = (((crc_len < 0) && !feof(fp))) ||
+                       ((crc_len > 0) && (total_read != (size_t)crc_len));
     fclose(fp);
     if (read_error)
         DIE("Failed to read file %s. Expected %ld bytes but got only %zu", filename, crc_len, total_read);

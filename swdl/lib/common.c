@@ -23,6 +23,8 @@
 
 #include "nImage.h"
 
+#define BUF_SIZE ((size_t)8192)
+
 typedef struct {
     nimg_ptype_e id;
     const char *name;
@@ -58,6 +60,30 @@ void nimg_hdr_init(nimg_hdr_t *h)
     h->magic = NIMG_HDR_MAGIC;
     h->ver_major = NIMG_VER_MAJOR;
     h->ver_minor = NIMG_VER_MINOR;
+}
+
+/* Update the CRC32 for crc_len bytes from fp.
+ * If crc_len is negative, read until EOF (i.e. fread returns <= 0).
+ * Returns the number of bytes crc'd.
+ * The caller should initialize crc to 0 or some other starting value
+ */
+size_t file_crc32(uint32_t *crc, long len, FILE *fp)
+{
+    uint8_t *buf = malloc(BUF_SIZE);
+    assert(buf != NULL);
+
+    size_t total_read = 0;
+    while (true)
+    {
+        ssize_t to_read = (len > 0) ? MIN(BUF_SIZE, len - total_read) : BUF_SIZE;
+        ssize_t nread = fread(buf, 1, to_read, fp);
+        if (nread <= 0)
+            break;
+        xcrc32(crc, buf, nread);
+        total_read += nread;
+    }
+    free(buf);
+    return total_read;
 }
 
 void print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp)
