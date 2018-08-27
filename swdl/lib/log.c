@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include "mknImage.h"
+#include "nImage.h"
 
 log_level_e log_level = LOG_LEVEL_INFO;
 

@@ -21,7 +21,7 @@
 #include <string.h>
 #include <assert.h>
 
-#include "mknImage.h"
+#include "nImage.h"
 
 typedef struct {
     nimg_ptype_e id;

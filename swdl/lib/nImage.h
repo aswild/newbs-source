@@ -15,8 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  ******************************************************************************/
 
-#ifndef MKNIMAGE_H
-#define MKNIMAGE_H
+#ifndef NIMAGE_H
+#define NIMAGE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdio.h>
 #include <stdint.h>
@@ -32,39 +36,14 @@
 // apparently parsing doesn't stop at the first #error,
 // so define an empty macro to avoid extra errors when
 // we use it below
-#if !defined(__USE_ISOC11) || !defined(static_assert)
+#if !defined(__cplusplus) && (!defined(__USE_ISOC11) || !defined(static_assert))
 #define static_assert(cond, msg)
-#error "mknImage requires a C11 compiler and static_assert"
+#error "nImage requires a C11 compiler and static_assert"
 #endif
 
-typedef enum {
-    LOG_LEVEL_NONE,
-    LOG_LEVEL_ERROR,
-    LOG_LEVEL_WARN,
-    LOG_LEVEL_INFO,
-    LOG_LEVEL_DEBUG,
-} log_level_e;
-extern log_level_e log_level;
-
-extern void log_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-extern void log_warn (const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-extern void log_info (const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-extern void log_debug(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-
-#define DIE_USAGE(fmt, args...) do { \
-        fprintf(stderr, "Error: " fmt "\nRun `mknImage -h` for usage information\n", ##args); \
-        exit(2); \
-    } while(0)
-
-#define DIE(fmt, args...) do { \
-        fprintf(stderr, "Error: " fmt "\n", ##args); \
-        exit(1); \
-    } while(0)
-
-#define DIE_ERRNO(fmt, args...) do { \
-        fprintf(stderr, "Error: " fmt ": %s\n", ##args, strerror(errno)); \
-        exit(2); \
-    } while(0)
+/*******************************************************************************
+ * NIMAGE DEFINES
+ ******************************************************************************/
 
 #define NIMG_HDR_MAGIC  0x474d49534257454eULL /* "NEWBSIMG" */
 #define NIMG_PHDR_MAGIC 0x54524150474d494eULL /* "NIMGPART" */
@@ -110,11 +89,52 @@ typedef struct __attribute__((packed)) {
 } nimg_hdr_t;
 static_assert(sizeof(nimg_hdr_t) == NIMG_HDR_SIZE, "wrong size for nimg_hdr_t");
 
-typedef struct {
-    const char    *name;
-    int(*handler)(int argc, char **argv);
-    void(*help_func)(void);
-} cmd_t;
+/*******************************************************************************
+ * LOGGING
+ ******************************************************************************/
+
+typedef enum {
+    LOG_LEVEL_NONE,
+    LOG_LEVEL_ERROR,
+    LOG_LEVEL_WARN,
+    LOG_LEVEL_INFO,
+    LOG_LEVEL_DEBUG,
+} log_level_e;
+extern log_level_e log_level;
+
+extern void log_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+extern void log_warn (const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+extern void log_info (const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+extern void log_debug(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+#define DIE_USAGE(fmt, args...) do { \
+        fprintf(stderr, "Error: " fmt "\nRun `mknImage -h` for usage information\n", ##args); \
+        exit(2); \
+    } while(0)
+
+#define DIE(fmt, args...) do { \
+        fprintf(stderr, "Error: " fmt "\n", ##args); \
+        exit(1); \
+    } while(0)
+
+#define DIE_ERRNO(fmt, args...) do { \
+        fprintf(stderr, "Error: " fmt ": %s\n", ##args, strerror(errno)); \
+        exit(2); \
+    } while(0)
+
+/*******************************************************************************
+ * HELPERS AND COMMON FUNCTIONS
+ ******************************************************************************/
+
+#define MIN(a, b) \
+  ({ typeof (a) _a = (a); \
+     typeof (b) _b = (b); \
+     _a < _b ? _a : _b; })
+
+#define MAX(a, b) \
+  ({ typeof (a) _a = (a); \
+     typeof (b) _b = (b); \
+     _a > _b ? _a : _b; })
 
 // from libiberty crc32.c
 extern void xcrc32(uint32_t *_crc, const uint8_t *buf, ssize_t len);
@@ -127,32 +147,9 @@ void print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp);
 int check_strtol(const char *str, int base, long *value);
 extern FILE * open_file(const char *name, const char *mode);
 
-#define MIN(a, b) \
-  ({ typeof (a) _a = (a); \
-     typeof (b) _b = (b); \
-     _a < _b ? _a : _b; })
 
-#define MAX(a, b) \
-  ({ typeof (a) _a = (a); \
-     typeof (b) _b = (b); \
-     _a > _b ? _a : _b; })
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
-// command handlers with a side of macro magic
-#define CMD_LIST(xform) \
-    xform(create) \
-    xform(crc32)
-
-#define DECLARE_CMD_HANDLERS(name) \
-    extern int  cmd_##name(int argc, char **argv); \
-    extern void cmd_help_##name(void);
-
-CMD_LIST(DECLARE_CMD_HANDLERS)
-
-#define DECLARE_CMD_DATA(name) {#name, cmd_##name, cmd_help_##name},
-#define DECLARE_CMD_TABLE(table_name) \
-        cmd_t table_name[] = { \
-            CMD_LIST(DECLARE_CMD_DATA) \
-            {NULL, NULL, NULL} \
-        }
-
-#endif // MKNIMAGE_H
+#endif // NIMAGE_H
