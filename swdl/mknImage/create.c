@@ -158,28 +158,24 @@ int cmd_create(int argc, char **argv)
             DIE_ERRNO("failed to open '%s' for reading", files[i].filename);
 
         uint32_t crc = 0;
-        size_t part_read = 0;
-        do
-        {
-            size_t to_read = MIN(buf_size, sb.st_size - part_read);
-            ssize_t nread = fread(buf, 1, to_read, part_fp);
-            log_debug("read %ld/%ld bytes from %s", (long)nread, sb.st_size, files[i].filename);
-            if (nread < 1)
-            {
-                int old_errno = errno;
-                fclose(part_fp);
-                DIE("failed to read from '%s': %s'", files[i].filename, strerror(old_errno));
-            }
-            if (fwrite(buf, 1, nread, img_fp) != (size_t)nread)
-            {
-                int old_errno = errno;
-                fclose(part_fp);
-                DIE("failed to write to '%s': %s", img_filename, strerror(old_errno));
-            }
-            xcrc32(&crc, buf, nread);
-            part_read += nread;
-        } while (part_read < (size_t)sb.st_size);
+        size_t count = file_copy_crc32(&crc, (long)sb.st_size, part_fp, img_fp);
         fclose(part_fp);
+        if (count != (size_t)sb.st_size)
+        {
+            if (ferror(part_fp))
+            {
+                DIE_ERRNO("failed to read from '%s'", files[i].filename);
+            }
+            else if (ferror(img_fp))
+            {
+                DIE_ERRNO("failed to read from '%s'", files[i].filename);
+            }
+            else
+            {
+                DIE("expected to read %zu bytes but got only %zu from '%s'",
+                    (size_t)sb.st_size, count, files[i].filename);
+            }
+        }
 
         hdr.parts[i].magic  = NIMG_PHDR_MAGIC;
         hdr.parts[i].size   = sb.st_size;

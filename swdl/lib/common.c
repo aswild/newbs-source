@@ -62,6 +62,35 @@ void nimg_hdr_init(nimg_hdr_t *h)
     h->ver_minor = NIMG_VER_MINOR;
 }
 
+/* Copy len bytes from fp_in to fp_out, calculating the CRC32 along the way.
+ * If len is negative, read until EOF.
+ * Returns the number of bytes copied.
+ * The caller should initialize crc to 0 or some other starting value
+ */
+size_t file_copy_crc32(uint32_t *crc, long len, FILE *fp_in, FILE *fp_out)
+{
+    uint8_t *buf = malloc(BUF_SIZE);
+    assert(buf != NULL);
+
+    size_t total_read = 0;
+    while (true)
+    {
+        ssize_t to_read = (len > 0) ? MIN(BUF_SIZE, len - total_read) : BUF_SIZE;
+        ssize_t nread = fread(buf, 1, to_read, fp_in);
+        if (nread <= 0)
+            break; // read error or EOF
+
+        if (fwrite(buf, 1, nread, fp_out) != (size_t)nread)
+            break; // write error
+
+        xcrc32(crc, buf, nread);
+        total_read += nread;
+    }
+
+    free(buf);
+    return total_read;
+}
+
 /* Update the CRC32 for crc_len bytes from fp.
  * If crc_len is negative, read until EOF (i.e. fread returns <= 0).
  * Returns the number of bytes crc'd.
