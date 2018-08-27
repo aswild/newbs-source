@@ -19,6 +19,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "mknImage.h"
 
@@ -39,24 +41,30 @@ int cmd_crc32(int argc, char **argv)
         DIE_USAGE("crc32 command requires an argument");
 
     const char *filename = argv[1];
-    FILE *fp = open_file(filename, "r");
-    if (fp == NULL)
-        DIE_ERRNO("Failed to open file %s", filename);
 
-    long crc_len = -1;
+    int fd;
+    if (!strcmp(filename, "-"))
+        fd = STDIN_FILENO;
+    else
+        fd = open(filename, O_RDONLY);
+    if (fd < 0)
+        DIE_ERRNO("Failed to open file '%s' for reading", filename);
+
+    long len = -1;
     if (argc > 2)
     {
-        if ((check_strtol(argv[2], 0, &crc_len) < 0) || (crc_len <= 0))
+        if ((check_strtol(argv[2], 0, &len) < 0) || (len <= 0))
             DIE("Invalid SIZE argument '%s'", argv[2]);
     }
 
     uint32_t crc = 0;
-    size_t total_read = file_crc32(&crc, crc_len, fp);
-    bool read_error = (((crc_len < 0) && !feof(fp))) ||
-                       ((crc_len > 0) && (total_read != (size_t)crc_len));
-    fclose(fp);
-    if (read_error)
-        DIE("Failed to read file %s. Expected %ld bytes but got only %zu", filename, crc_len, total_read);
+    ssize_t count = file_copy_crc32(&crc, len, fd, -1);
+    close(fd);
+
+    if (count < 0)
+        DIE_ERRNO("Failed to read from file %s", filename);
+    if ((len > 0) && (count != (ssize_t)len))
+        DIE("Failed to read file '%s'. Expected %ld bytes but got only %ld", filename, len, (long)count);
 
     printf("0x%08x\n", crc);
 

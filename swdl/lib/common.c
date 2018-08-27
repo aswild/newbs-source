@@ -20,6 +20,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
+#include <unistd.h>
 
 #include "nImage.h"
 
@@ -62,55 +63,45 @@ void nimg_hdr_init(nimg_hdr_t *h)
     h->ver_minor = NIMG_VER_MINOR;
 }
 
-/* Copy len bytes from fp_in to fp_out, calculating the CRC32 along the way.
+/* Copy len bytes from fd_in to fd_out, calculating the CRC32 along the way.
  * If len is negative, read until EOF.
- * Returns the number of bytes copied.
+ * If fd_out is -1, don't copy, just read and CRC.
+ * Returns the number of bytes copied, -1 on read error, or -2 on write error.
  * The caller should initialize crc to 0 or some other starting value
  */
-size_t file_copy_crc32(uint32_t *crc, long len, FILE *fp_in, FILE *fp_out)
+ssize_t file_copy_crc32(uint32_t *crc, long len, int fd_in, int fd_out)
 {
     uint8_t *buf = malloc(BUF_SIZE);
     assert(buf != NULL);
 
-    size_t total_read = 0;
-    while (true)
+    ssize_t total_read = 0;
+    while ((len < 0) || (total_read != len))
     {
-        ssize_t to_read = (len > 0) ? MIN(BUF_SIZE, len - total_read) : BUF_SIZE;
-        ssize_t nread = fread(buf, 1, to_read, fp_in);
-        if (nread <= 0)
-            break; // read error or EOF
-
-        if (fwrite(buf, 1, nread, fp_out) != (size_t)nread)
-            break; // write error
-
-        xcrc32(crc, buf, nread);
-        total_read += nread;
-    }
-
-    free(buf);
-    return total_read;
-}
-
-/* Update the CRC32 for crc_len bytes from fp.
- * If crc_len is negative, read until EOF (i.e. fread returns <= 0).
- * Returns the number of bytes crc'd.
- * The caller should initialize crc to 0 or some other starting value
- */
-size_t file_crc32(uint32_t *crc, long len, FILE *fp)
-{
-    uint8_t *buf = malloc(BUF_SIZE);
-    assert(buf != NULL);
-
-    size_t total_read = 0;
-    while (true)
-    {
-        ssize_t to_read = (len > 0) ? MIN(BUF_SIZE, len - total_read) : BUF_SIZE;
-        ssize_t nread = fread(buf, 1, to_read, fp);
-        if (nread <= 0)
+        size_t to_read = (len > 0) ? MIN(BUF_SIZE, (size_t)(len - total_read)) : BUF_SIZE;
+        ssize_t nread = read(fd_in, buf, to_read);
+        if (nread < 0)
+        {
+            // read error
+            total_read = -1;
             break;
+        }
+        else if (nread == 0)
+            break; // EOF
+
+        if (fd_out != -1)
+        {
+            if (write(fd_out, buf, nread) != nread)
+            {
+                // write error
+                total_read = -2;
+                break;
+            }
+        }
+
         xcrc32(crc, buf, nread);
         total_read += nread;
     }
+
     free(buf);
     return total_read;
 }

@@ -23,6 +23,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include "mknImage.h"
@@ -33,7 +34,7 @@ typedef struct {
 } fileinfo_t;
 
 static const char *img_filename = NULL;
-static FILE *img_fp;
+static int img_fd = -1;
 static bool create_success = false;
 
 void cmd_help_create(void)
@@ -58,14 +59,14 @@ static void cleanup(void)
         if (!create_success)
         {
             log_info("failed to create image, cleaning up...");
-            if (img_fp != NULL)
-                fclose(img_fp);
+            if (img_fd != -1)
+                close(img_fd);
 
             if (img_filename != NULL)
                 if (unlink(img_filename) < 0)
                     log_warn("failed to delete '%s' in cleanup handler: %s", img_filename, strerror(errno));
 
-            img_fp = NULL;
+            img_fd = -1;
             img_filename = NULL;
         }
     }
@@ -132,14 +133,14 @@ int cmd_create(int argc, char **argv)
     hdr.n_parts = argc;
 
     log_info("Creating image %s", img_filename);
-    img_fp = fopen(img_filename, "w");
-    if (img_fp == NULL)
+    img_fd = open(img_filename, O_WRONLY | O_CREAT, 0666);
+    if (img_fd == -1)
         DIE_ERRNO("unable to open '%s' for writing", img_filename);
     register_cleanup();
 
-    void *dummy_hdr = malloc(sizeof(nimg_hdr_t));
+    void *dummy_hdr = malloc(NIMG_HDR_SIZE);
     assert(dummy_hdr != NULL);
-    if (fwrite(dummy_hdr, sizeof(nimg_hdr_t), 1, img_fp) != 1)
+    if (write(img_fd, dummy_hdr, NIMG_HDR_SIZE) != NIMG_HDR_SIZE)
         DIE_ERRNO("failed to write blank image header");
     free(dummy_hdr);
 
@@ -153,28 +154,22 @@ int cmd_create(int argc, char **argv)
         if (stat(files[i].filename, &sb) < 0)
             DIE_ERRNO("failed to stat '%s'", files[i].filename);
 
-        FILE *part_fp = fopen(files[i].filename, "r");
-        if (part_fp == NULL)
+        int part_fd = open(files[i].filename, O_RDONLY);
+        if (part_fd == -1)
             DIE_ERRNO("failed to open '%s' for reading", files[i].filename);
 
         uint32_t crc = 0;
-        size_t count = file_copy_crc32(&crc, (long)sb.st_size, part_fp, img_fp);
-        fclose(part_fp);
-        if (count != (size_t)sb.st_size)
+        ssize_t count = file_copy_crc32(&crc, (long)sb.st_size, part_fd, img_fd);
+        close(part_fd);
+        if (count != sb.st_size)
         {
-            if (ferror(part_fp))
-            {
+            if (count == -1)
                 DIE_ERRNO("failed to read from '%s'", files[i].filename);
-            }
-            else if (ferror(img_fp))
-            {
+            else if (count == -2)
                 DIE_ERRNO("failed to read from '%s'", files[i].filename);
-            }
             else
-            {
                 DIE("expected to read %zu bytes but got only %zu from '%s'",
                     (size_t)sb.st_size, count, files[i].filename);
-            }
         }
 
         hdr.parts[i].magic  = NIMG_PHDR_MAGIC;
@@ -194,14 +189,13 @@ int cmd_create(int argc, char **argv)
     free(buf);
     free(files);
 
-    rewind(img_fp);
-    if (fwrite(&hdr, NIMG_HDR_SIZE, 1, img_fp) != 1)
+    if (lseek(img_fd, 0, SEEK_SET) == (off_t)(-1))
+        DIE_ERRNO("failed to lseek to begining of image");
+    if (write(img_fd, &hdr, NIMG_HDR_SIZE) != NIMG_HDR_SIZE)
         DIE_ERRNO("failed to write final image header");
 
     create_success = true;
-    fclose(img_fp);
-    img_fp = NULL;
-    img_filename = NULL;
+    close(img_fd);
 
     return 0;
 }
