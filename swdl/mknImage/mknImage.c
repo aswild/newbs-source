@@ -68,6 +68,9 @@ static const cmd_t * find_cmd(const char *name)
 int main(int argc, char *argv[])
 {
     int opt;
+    // start the optstring with + to disable automatic argument re-ordering,
+    // getopt stops as soon as it finds a non-option argument so that
+    // commands can take options too.
     while ((opt = getopt(argc, argv, "+hVDq")) != -1)
     {
         switch (opt)

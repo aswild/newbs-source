@@ -55,9 +55,10 @@
 #define NIMG_VER_MAJOR  1
 #define NIMG_VER_MINOR  0
 
-#define NIMG_HDR_SIZE   256
+#define NIMG_HDR_SIZE   1024
 #define NIMG_PHDR_SIZE  32
-#define NIMG_MAX_PHDRS  7
+#define NIMG_NAME_LEN   128
+#define NIMG_MAX_PARTS  27
 
 typedef enum {
     NIMG_PART_TYPE_INVALID,
@@ -88,7 +89,8 @@ typedef struct __attribute__((packed)) {
     uint8_t     n_parts;
     uint8_t     unused1;
     uint32_t    unused2;
-    nimg_phdr_t parts[NIMG_MAX_PHDRS];
+    char        name[NIMG_NAME_LEN];
+    nimg_phdr_t parts[NIMG_MAX_PARTS];
     uint8_t     unused3[12];
     uint32_t    hdr_crc32;
 } nimg_hdr_t;

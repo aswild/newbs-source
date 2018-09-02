@@ -45,13 +45,14 @@ void cmd_help_create(void)
 {
     static const char msg[] =
         "    Create an nImage.\n"
-        "    usage: mknImage create IMAGE_FILE TYPE1:FILE1 [TYPE2:FILE2]...\n"
-        "      FILE:  Output image file (can't use stdout)\n"
-        "      TYPEn: Image type. Valid options are: kernel, boot, rootfs, rootfs_rw\n"
-        "      FILEn: Input partition data filename\n"
+        "    usage: mknImage create [-n NAME] IMAGE_FILE TYPE1:FILE1 [TYPE2:FILE2]...\n"
+        "      -n NAME: Name to embed in the image header (max %d chars)\n"
+        "      FILE:    Output image file (must be a seekable file, not a pipe like stdout)\n"
+        "      TYPEn:   Image type. Valid options are: kernel, boot, rootfs, rootfs_rw\n"
+        "      FILEn:   Input partition data filename\n"
         "    Type kernel is the bare Linux kernel image. Type boot is the full boot partition\n"
     "";
-    fputs(msg, stdout);
+    printf(msg, NIMG_NAME_LEN);
 }
 
 static void cleanup(void)
@@ -96,7 +97,7 @@ static int init_fileinfo(fileinfo_t *f, const char *arg)
     char *colon = strchr(arg, ':');
     if (colon == NULL)
     {
-        log_error("invalid format for argument '%s'", arg);
+        log_error("invalid partition filename format: '%s'", arg);
         return -1;
     }
     *colon = '\0';
@@ -115,15 +116,35 @@ static int init_fileinfo(fileinfo_t *f, const char *arg)
 
 int cmd_create(int argc, char **argv)
 {
-    if (argc < 3)
+    char *img_name = NULL;
+    int opt;
+    optind = 1; // reset getopt state after main options parsing
+    while ((opt = getopt(argc, argv, "n:")) != -1)
+    {
+        switch (opt)
+        {
+            case 'n':
+                if (strlen(optarg) > NIMG_NAME_LEN)
+                    DIE_USAGE("image name too long");
+                img_name = optarg;
+                break;
+            default:
+                DIE_USAGE("unknown option '%c'", opt);
+                break;
+        }
+    }
+    argc -= optind;
+    argv += optind;
+
+    if (argc < 2)
         DIE_USAGE("create: not enough arguments");
 
-    img_filename = argv[1];
-    argc -= 2;
-    argv += 2;
+    img_filename = argv[0];
+    argc--;
+    argv++;
 
-    if (argc > NIMG_MAX_PHDRS)
-        DIE("too many image parts %d, max is %d", argc, NIMG_MAX_PHDRS);
+    if (argc > NIMG_MAX_PARTS)
+        DIE("too many image parts %d, max is %d", argc, NIMG_MAX_PARTS);
 
     fileinfo_t *files = malloc(argc * sizeof(fileinfo_t));
     assert(files != NULL);
@@ -135,8 +156,13 @@ int cmd_create(int argc, char **argv)
     nimg_hdr_t hdr;
     nimg_hdr_init(&hdr);
     hdr.n_parts = argc;
+    if (img_name != NULL)
+        strncpy(hdr.name, img_name, NIMG_NAME_LEN);
 
     log_info("Creating image %s", img_filename);
+    if (img_name != NULL)
+        log_info("Image name is '%s'", img_name);
+
     img_fd = open(img_filename, O_WRONLY | O_CREAT, 0666);
     if (img_fd == -1)
         DIE_ERRNO("unable to open '%s' for writing", img_filename);
@@ -201,6 +227,14 @@ int cmd_create(int argc, char **argv)
     free(buf);
     free(files);
 
+    // compute header CRC
+    // use a temp variable rather than passing &hdr.hdr_crc32 to suppress
+    // clang's address-of-packed-member warning (could return an unaligned pointer in a packed struct)
+    uint32_t crc = 0;
+    xcrc32(&crc, (const uint8_t*)&hdr, NIMG_HDR_SIZE-4);
+    hdr.hdr_crc32 = crc;
+
+    // seek back to beginning and add the real header
     if (lseek(img_fd, 0, SEEK_SET) == (off_t)(-1))
         DIE_ERRNO("failed to lseek to begining of image");
     if (write(img_fd, &hdr, NIMG_HDR_SIZE) != NIMG_HDR_SIZE)
