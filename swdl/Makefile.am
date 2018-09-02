@@ -19,7 +19,8 @@ bin_mknImage_SOURCES = $(LIBSOURCES) \
                        mknImage/mknImage.h \
                        mknImage/mknImage.c \
                        mknImage/crc32_cmd.c \
-                       mknImage/create.c
+                       mknImage/create.c \
+                       mknImage/check.c
 
 if ENABLE_SWDL
 bin_PROGRAMS += bin/newbs-swdl

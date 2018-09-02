@@ -29,6 +29,7 @@ typedef struct {
 // command handlers with a side of macro magic
 #define CMD_LIST(xform) \
     xform(create) \
+    xform(check) \
     xform(crc32)
 
 #define DECLARE_CMD_HANDLERS(name) \
