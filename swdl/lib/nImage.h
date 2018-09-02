@@ -18,10 +18,6 @@
 #ifndef NIMAGE_H
 #define NIMAGE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdio.h>
 #include <stdint.h>
 #include <assert.h>
@@ -32,14 +28,23 @@ extern "C" {
 #error "mknImage requires a little-endian machine"
 #endif
 
+#ifdef __cplusplus
+#define BEGIN_DECLS extern "C" {
+#define END_DECLS   }
+
+#else
+#define BEGIN_DECLS
+#define END_DECLS
+
 // make sure we have static_assert available
 // apparently parsing doesn't stop at the first #error,
 // so define an empty macro to avoid extra errors when
 // we use it below
-#if !defined(__cplusplus) && (!defined(__USE_ISOC11) || !defined(static_assert))
+#if !defined(__GNUC__) || !defined(__USE_ISOC11) || !defined(static_assert)
 #define static_assert(cond, msg)
-#error "nImage requires a C11 compiler and static_assert"
+#error "nImage requires a GNU C11 compiler and static_assert"
 #endif
+#endif // __cplusplus
 
 /*******************************************************************************
  * NIMAGE DEFINES
@@ -102,10 +107,12 @@ typedef enum {
 } log_level_e;
 extern log_level_e log_level;
 
+BEGIN_DECLS
 extern void log_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 extern void log_warn (const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 extern void log_info (const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 extern void log_debug(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+END_DECLS
 
 #define DIE_USAGE(fmt, args...) do { \
         fprintf(stderr, "Error: " fmt "\nRun `mknImage -h` for usage information\n", ##args); \
@@ -126,16 +133,33 @@ extern void log_debug(const char *fmt, ...) __attribute__((format(printf, 1, 2))
  * HELPERS AND COMMON FUNCTIONS
  ******************************************************************************/
 
-#define MIN(a, b) \
+#ifdef __cplusplus
+// fancy C++ inline template functions for min/max
+// We get sensible compiler warnings if trying to compare signed/unsigned
+// values or other incompatible types.
+template<typename Ta, typename Tb>
+static inline auto min(Ta a, Tb b)
+{ return a < b ? a : b; }
+
+template<typename Ta, typename Tb>
+static inline auto max(Ta a, Tb b)
+{ return a > b ? a : b; }
+
+#else
+// C macros for min/max using GCC's typeof extension
+#define min(a, b) \
   ({ typeof (a) _a = (a); \
      typeof (b) _b = (b); \
      _a < _b ? _a : _b; })
 
-#define MAX(a, b) \
+#define max(a, b) \
   ({ typeof (a) _a = (a); \
      typeof (b) _b = (b); \
      _a > _b ? _a : _b; })
 
+#endif // __cplusplus
+
+BEGIN_DECLS
 // from libiberty crc32.c
 extern void xcrc32(uint32_t *_crc, const uint8_t *buf, ssize_t len);
 
@@ -147,10 +171,6 @@ ssize_t file_copy_crc32(uint32_t *crc, long len, int fd_in, int fd_out);
 void print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp);
 int check_strtol(const char *str, int base, long *value);
 extern FILE * open_file(const char *name, const char *mode);
-
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
+END_DECLS
 
 #endif // NIMAGE_H

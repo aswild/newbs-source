@@ -77,7 +77,7 @@ ssize_t file_copy_crc32(uint32_t *crc, long len, int fd_in, int fd_out)
     ssize_t total_read = 0;
     while ((len < 0) || (total_read != len))
     {
-        size_t to_read = (len > 0) ? MIN(BUF_SIZE, (size_t)(len - total_read)) : BUF_SIZE;
+        size_t to_read = (len > 0) ? min(BUF_SIZE, (size_t)(len - total_read)) : BUF_SIZE;
         ssize_t nread = read(fd_in, buf, to_read);
         if (nread < 0)
         {
