@@ -159,18 +159,38 @@ static inline auto max(Ta a, Tb b)
 
 #endif // __cplusplus
 
+typedef enum {
+    NIMG_HDR_CHECK_SUCCESS = 0,
+    NIMG_HDR_CHECK_BAD_MAGIC,
+    NIMG_HDR_CHECK_BAD_VERSION,
+    NIMG_HDR_CHECK_TOO_MANY_PARTS,
+    NIMG_HDR_CHECK_BAD_CRC,
+} nimg_hdr_check_e;
+
+typedef enum {
+    NIMG_PHDR_CHECK_SUCCESS = 0,
+    NIMG_PHDR_CHECK_BAD_MAGIC,
+    NIMG_PHDR_CHECK_BAD_TYPE,
+} nimg_phdr_check_e;
+
 BEGIN_DECLS
 // from libiberty crc32.c
 extern void xcrc32(uint32_t *_crc, const uint8_t *buf, ssize_t len);
 
 // from common.c
-nimg_ptype_e part_type_from_name(const char *name);
-const char * part_name_from_type(nimg_ptype_e id);
-void nimg_hdr_init(nimg_hdr_t *h);
-ssize_t file_copy_crc32(uint32_t *crc, long len, int fd_in, int fd_out);
-void print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp);
-int check_strtol(const char *str, int base, long *value);
-extern FILE * open_file(const char *name, const char *mode);
+nimg_ptype_e    part_type_from_name(const char *name);
+const char*     part_name_from_type(nimg_ptype_e id);
+void            nimg_hdr_init(nimg_hdr_t *h);
+void            print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp);
+nimg_hdr_check_e    nimg_hdr_check(const nimg_hdr_t *h);
+nimg_phdr_check_e   nimg_phdr_check(const nimg_phdr_t *h);
+const char*     nimg_hdr_check_str(nimg_hdr_check_e status);
+const char*     nimg_phdr_check_str(nimg_phdr_check_e status);
+
+ssize_t         file_copy_crc32(uint32_t *crc, long len, int fd_in, int fd_out);
+int             check_strtol(const char *str, int base, long *value);
+FILE*           open_file(const char *name, const char *mode);
+size_t          read_n(int fd, void *buf, size_t count);
 END_DECLS
 
 #endif // NIMAGE_H
