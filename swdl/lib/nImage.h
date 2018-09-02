@@ -50,10 +50,9 @@
  * NIMAGE DEFINES
  ******************************************************************************/
 
-#define NIMG_HDR_MAGIC  0x474d49534257454eULL /* "NEWBSIMG" */
-#define NIMG_PHDR_MAGIC 0x54524150474d494eULL /* "NIMGPART" */
-#define NIMG_VER_MAJOR  1
-#define NIMG_VER_MINOR  0
+#define NIMG_HDR_MAGIC   0x474d49534257454eULL /* "NEWBSIMG" */
+#define NIMG_PHDR_MAGIC  0x54524150474d494eULL /* "NIMGPART" */
+#define NIMG_HDR_VERSION 1
 
 #define NIMG_HDR_SIZE   1024
 #define NIMG_PHDR_SIZE  32
@@ -84,10 +83,9 @@ static_assert(sizeof(nimg_phdr_t) == NIMG_PHDR_SIZE, "wrong size for nimg_phdr_t
 
 typedef struct __attribute__((packed)) {
     uint64_t    magic;
-    uint8_t     ver_major;
-    uint8_t     ver_minor;
+    uint8_t     version;
     uint8_t     n_parts;
-    uint8_t     unused1;
+    uint16_t    unused1;
     uint32_t    unused2;
     char        name[NIMG_NAME_LEN];
     nimg_phdr_t parts[NIMG_MAX_PARTS];

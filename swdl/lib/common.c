@@ -59,8 +59,7 @@ void nimg_hdr_init(nimg_hdr_t *h)
 {
     memset(h, 0, sizeof(*h));
     h->magic = NIMG_HDR_MAGIC;
-    h->ver_major = NIMG_VER_MAJOR;
-    h->ver_minor = NIMG_VER_MINOR;
+    h->version = NIMG_HDR_VERSION;
 }
 
 /* Copy len bytes from fd_in to fd_out, calculating the CRC32 along the way.
