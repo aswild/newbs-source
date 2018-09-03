@@ -103,7 +103,7 @@ static int init_fileinfo(fileinfo_t *f, const char *arg)
     *colon = '\0';
 
     nimg_ptype_e type = part_type_from_name(arg);
-    if (type == NIMG_PART_TYPE_INVALID)
+    if (type == NIMG_PTYPE_INVALID)
     {
         log_error("invalid partition type '%s'", arg);
         return -1;

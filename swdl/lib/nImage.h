@@ -59,17 +59,35 @@
 #define NIMG_NAME_LEN   128
 #define NIMG_MAX_PARTS  27
 
+// Important! Keep this enum and nimg_ptype_names in sync!
 typedef enum {
-    NIMG_PART_TYPE_INVALID,
-    NIMG_PART_TYPE_KERNEL,
-    NIMG_PART_TYPE_BOOT,
-    NIMG_PART_TYPE_ROOTFS,
-    NIMG_PART_TYPE_ROOTFS_RW,
+    NIMG_PTYPE_INVALID,
+    NIMG_PTYPE_BOOT_IMG,
+    NIMG_PTYPE_BOOT_TAR,
+    NIMG_PTYPE_BOOT_TARGZ,
+    NIMG_PTYPE_BOOT_TARXZ,
+    NIMG_PTYPE_ROOTFS,
+    NIMG_PTYPE_ROOTFS_RW,
 
-    NIMG_PART_TYPE_LAST,
-    NIMG_PART_TYPE_LAST_VALID = NIMG_PART_TYPE_LAST - 1
+    NIMG_PTYPE_COUNT,
+    NIMG_PTYPE_LAST = NIMG_PTYPE_COUNT - 1
 } nimg_ptype_e;
-static_assert(NIMG_PART_TYPE_LAST < 256, "Too many partition types defined");
+static_assert(NIMG_PTYPE_COUNT < 256, "Too many partition types defined");
+
+extern const char *nimg_ptype_names[];
+#ifdef NIMG_DECLARE_PTYPE_NAMES
+const char *nimg_ptype_names[] = {
+    "invalid",
+    "boot_img",
+    "boot_tar",
+    "boot_targz",
+    "boot_tarxz",
+    "rootfs",
+    "rootfs_rw",
+};
+static_assert(sizeof(nimg_ptype_names) == (NIMG_PTYPE_COUNT * sizeof(char*)),
+              "wrong number of elements  in nimg_ptype_names");
+#endif
 
 typedef struct __attribute__((packed)) {
     uint64_t magic;

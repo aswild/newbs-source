@@ -22,37 +22,24 @@
 #include <assert.h>
 #include <unistd.h>
 
+#define NIMG_DECLARE_PTYPE_NAMES
 #include "nImage.h"
 
 #define BUF_SIZE ((size_t)8192)
 
-typedef struct {
-    nimg_ptype_e id;
-    const char *name;
-} ptype_info_t;
-
-static const ptype_info_t ptype_table[] = {
-    { NIMG_PART_TYPE_KERNEL,    "kernel" },
-    { NIMG_PART_TYPE_BOOT,      "boot" },
-    { NIMG_PART_TYPE_ROOTFS,    "rootfs" },
-    { NIMG_PART_TYPE_ROOTFS_RW, "rootfs_rw" },
-    { 0, NULL },
-};
-
 nimg_ptype_e part_type_from_name(const char *name)
 {
-    for (const ptype_info_t *p = ptype_table; p->name != NULL; p++)
-        if (!strcasecmp(name, p->name))
-            return p->id;
-    return NIMG_PART_TYPE_INVALID;
+    for (int i = 0; i < NIMG_PTYPE_COUNT; i++)
+        if (!strcmp(nimg_ptype_names[i], name))
+            return (nimg_ptype_e)i;
+    return NIMG_PTYPE_INVALID;
 }
 
-const char * part_name_from_type(nimg_ptype_e id)
+const char* part_name_from_type(nimg_ptype_e id)
 {
-    for (const ptype_info_t *p = ptype_table; p->name != NULL; p++)
-        if (id == p->id)
-            return p->name;
-    return NULL;
+    if (id > NIMG_PTYPE_LAST)
+        return NULL;
+    return nimg_ptype_names[id];
 }
 
 void nimg_hdr_init(nimg_hdr_t *h)
@@ -93,7 +80,7 @@ nimg_phdr_check_e nimg_phdr_check(const nimg_phdr_t *h)
 {
     if (h->magic != NIMG_PHDR_MAGIC)
         return NIMG_PHDR_CHECK_BAD_MAGIC;
-    if (h->type > NIMG_PART_TYPE_LAST_VALID)
+    if (h->type > NIMG_PTYPE_LAST)
         return NIMG_PHDR_CHECK_BAD_TYPE;
 
     return NIMG_PHDR_CHECK_SUCCESS;
