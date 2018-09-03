@@ -11,8 +11,7 @@ endif
 LIBSOURCES = lib/nImage.h \
              lib/common.c \
              lib/crc32.c \
-             lib/log.c \
-             lib/PError.h lib/PError.cpp
+             lib/log.c
 
 bin_PROGRAMS = bin/mknImage
 bin_mknImage_SOURCES = $(LIBSOURCES) \
@@ -25,5 +24,6 @@ bin_mknImage_SOURCES = $(LIBSOURCES) \
 if ENABLE_SWDL
 bin_PROGRAMS += bin/newbs-swdl
 bin_newbs_swdl_SOURCES = $(LIBSOURCES) \
-                         newbs-swdl/newbs-swdl.cpp
+                         newbs-swdl/newbs-swdl.cpp \
+                         newbs-swdl/PError.h newbs-swdl/PError.cpp
 endif
