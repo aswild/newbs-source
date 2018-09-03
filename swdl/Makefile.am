@@ -24,6 +24,6 @@ bin_mknImage_SOURCES = $(LIBSOURCES) \
 if ENABLE_SWDL
 bin_PROGRAMS += bin/newbs-swdl
 bin_newbs_swdl_SOURCES = $(LIBSOURCES) \
-                         newbs-swdl/newbs-swdl.cpp \
-                         newbs-swdl/PError.h newbs-swdl/PError.cpp
+                         swdl/newbs-swdl.cpp \
+                         swdl/PError.h swdl/PError.cpp
 endif
