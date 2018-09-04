@@ -18,6 +18,39 @@
 #ifndef NEWBS_SWDL_H
 #define NEWBS_SWDL_H
 
+#include <exception>
+#include <iostream>
+#include <vector>
+
 #include "nImage.h"
+#include "PError.h"
+
+using std::exception;
+using std::string;
+using std::vector;
+
+typedef std::vector<std::string> stringvec;
+
+struct SwdlOptions
+{
+    bool toggle = true;
+    bool reboot = false;
+};
+extern SwdlOptions g_opts;
+
+// struct for a pipe fed by a child process
+struct CPipe
+{
+    pid_t pid; // child PID owning the pipe
+    int fd;    // read end of the pipe
+    bool running;
+};
+
+// lib.cpp functions
+stringvec split_words_in_file(const char *filename);
+string join_words(const stringvec& vec, const string& sep);
+CPipe open_curl(const string& url_);
+void cpipe_wait(CPipe& cp, bool block);
+ssize_t cpipe_read(CPipe& cp, void *buf, size_t count);
 
 #endif // NEWBS_SWDL_H

@@ -25,5 +25,6 @@ if ENABLE_SWDL
 bin_PROGRAMS += bin/newbs-swdl
 bin_newbs_swdl_SOURCES = $(LIBSOURCES) \
                          swdl/newbs-swdl.cpp \
+                         swdl/lib.cpp \
                          swdl/PError.h swdl/PError.cpp
 endif
