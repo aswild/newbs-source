@@ -51,6 +51,6 @@ stringvec split_words_in_file(const char *filename);
 string join_words(const stringvec& vec, const string& sep);
 CPipe open_curl(const string& url_);
 void cpipe_wait(CPipe& cp, bool block);
-ssize_t cpipe_read(CPipe& cp, void *buf, size_t count);
+size_t cpipe_read(CPipe& cp, void *buf, size_t count);
 
 #endif // NEWBS_SWDL_H

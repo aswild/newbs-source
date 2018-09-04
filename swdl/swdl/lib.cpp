@@ -33,11 +33,13 @@
 
 #include "newbs-swdl.h"
 
-stringvec split_words_in_file(const char *filename)
+// split a file into words using magic C++ i(n)f(ile)stream iterator
+// roughtly equivalent to Python open(filename).read().split()
+stringvec split_words_in_file(const string& filename)
 {
     std::ifstream ifs(filename);
     if (ifs.fail())
-        THROW_ERRNO("Unable to open %s as ifstream", filename);
+        THROW_ERRNO("Unable to open %s as ifstream", filename.c_str());
 
     std::istream_iterator<string> start(ifs), end; // default constructor for end yields "end of stream"
     stringvec vec(start, end); // initialize vector from start/end iterator pair
@@ -134,23 +136,21 @@ void cpipe_wait(CPipe& cp, bool block)
 // read from a forked child process, then check if it exited using cpipe_wait.
 // continues reading from the pipe after exit, cpipe_wait will throw an exception
 // if the process exits non-zero or was killed by a signal.
-ssize_t cpipe_read(CPipe& cp, void *buf, size_t count)
+size_t cpipe_read(CPipe& cp, void *buf, size_t count)
 {
-    PError ex;
-
-    ssize_t nread = 0;
+    size_t nread = 0;
     if ((cp.fd != -1) && (count != 0))
     {
-        nread = read(cp.fd, buf, count);
-        if (nread < 1)
+        nread = read_n(cp.fd, buf, count);
+        if (nread < count)
         {
             close(cp.fd);
             cp.fd = -1;
-            if (nread < 0)
-                ex = PError("%s: read failed on pipe", __func__);
+            if (errno)
+                THROW_ERRNO("read error on pipe");
+            else
+                THROW_ERROR("pipe closed after reading only %zd/%zu bytes", nread, count);
         }
     }
-    cpipe_wait(cp, false);
-
     return nread;
 }
