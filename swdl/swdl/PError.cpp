@@ -24,28 +24,26 @@
 
 PError::PError(const char *fmt, ...)
 {
+    char *cmsg = NULL;
     va_list args;
     va_start(args, fmt);
-    if (vasprintf(&msg, fmt, args) == -1)
+    if (vasprintf(&cmsg, fmt, args) == -1)
     {
         fprintf(stderr, "PError: vasprintf failed for fmt='%s'\n", fmt);
-        msg = NULL;
+    }
+    else
+    {
+        msg = std::string(cmsg);
+        free(cmsg);
     }
     va_end(args);
 }
 
 PError::PError(const std::string& str)
-{
-    msg = strdup(str.c_str());
-}
+{ msg = str; }
 
-PError::~PError(void)
-{
-    free(msg);
-    msg = NULL;
-}
+bool PError::something(void) const
+{ return msg.length() > 0; }
 
 const char* PError::what(void) const noexcept
-{
-    return msg;
-}
+{ return msg.c_str(); }

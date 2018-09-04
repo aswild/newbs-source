@@ -20,21 +20,26 @@
 
 #include <exception>
 #include <string>
+#include <errno.h>
 
 // PError: an exception class with a variadic constructor for constructing
 // error messages printf style
 class PError : public std::exception
 {
     private:
-        char *msg = NULL;
+        std::string msg;
 
     public:
-        PError(void) { /* empty default constructor, probably won't be used */ }
+        PError(void) { /* empty default constructor */ }
         PError(const char *fmt, ...) __attribute__((format(printf, 2, 3)));
         PError(const std::string& str);
-        ~PError(void);
 
+        bool something(void) const;
         virtual const char* what(void) const noexcept;
 };
+
+// helper macros
+#define THROW_ERROR(fmt, args...) throw PError("%s:%d: " fmt, __func__, __LINE__, ##args)
+#define THROW_ERRNO(fmt, args...) throw PError("%s:%d: " fmt ": %s", __func__, __LINE__, ##args, strerror(errno))
 
 #endif
