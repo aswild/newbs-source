@@ -11,4 +11,7 @@ AM_CONDITIONAL([ENABLE_LTO], [test "$enable_lto" != "no"])
 AC_ARG_ENABLE([swdl], AS_HELP_STRING([--disable-swdl], [Build mknImage only]))
 AM_CONDITIONAL([ENABLE_SWDL], [test "$enable_swdl" != "no"])
 
+AC_ARG_ENABLE([swdl-test], AS_HELP_STRING([--enable-swdl-test], [Test swdl code, do not write files or reboot]))
+AM_CONDITIONAL([SWDL_TEST], [test "$enable_swdl_test" = "yes"])
+
 AC_OUTPUT([Makefile])

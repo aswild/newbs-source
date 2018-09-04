@@ -7,6 +7,9 @@ if ENABLE_LTO
 AM_CFLAGS += -flto
 AM_CXXFLAGS += -flto
 endif
+if SWDL_TEST
+AM_CPPFLAGS += -DSWDL_TEST
+endif
 
 LIBSOURCES = lib/nImage.h \
              lib/common.c \
