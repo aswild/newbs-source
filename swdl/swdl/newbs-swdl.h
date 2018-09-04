@@ -33,24 +33,36 @@ typedef std::vector<std::string> stringvec;
 
 struct SwdlOptions
 {
-    bool toggle = true;
-    bool reboot = false;
+    bool    toggle = true;
+    bool    reboot = false;
+    string  cmdline_txt = string("/boot/cmdline.txt");
 };
 extern SwdlOptions g_opts;
 
 // struct for a pipe fed by a child process
 struct CPipe
 {
-    pid_t pid; // child PID owning the pipe
-    int fd;    // read end of the pipe
-    bool running;
+    pid_t pid = -1; // child PID owning the pipe
+    int fd = -1;    // our end of the pipe
+    bool running = false;
 };
 
 // lib.cpp functions
-stringvec split_words_in_file(const char *filename);
+stringvec split_words_in_file(const string& filename);
 string join_words(const stringvec& vec, const string& sep);
 CPipe open_curl(const string& url_);
 void cpipe_wait(CPipe& cp, bool block);
 size_t cpipe_read(CPipe& cp, void *buf, size_t count);
+
+// flashbanks.cpp functions
+int get_bank(const string& dev);
+int get_active_bank(const stringvec& cmdline);
+int get_inactive_bank(const stringvec& cmdline);
+string get_inactive_dev(const stringvec& cmdline);
+void cmdline_flip_bank(stringvec& cmdline);
+
+// program.cpp functions
+void program_part(CPipe& curl, const nimg_phdr_t *phdr);
+
 
 #endif // NEWBS_SWDL_H

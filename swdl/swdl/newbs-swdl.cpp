@@ -16,6 +16,7 @@
  ******************************************************************************/
 
 #include <cstdio>
+#include <signal.h>
 #include <unistd.h>
 
 #include "newbs-swdl.h"
@@ -35,6 +36,7 @@ static void usage(const char *arg0)
         "  -T   Do not toggle active rootfs bank (opposite of -t).\n"
         "  -r   Reboot after download.\n"
         "  -R   Do not reboot after download (default).\n"
+        "  -c   cmdline.txt location (default /boot/cmdline.txt).\n"
         "\n"
         "FILE:  Filename or URL to download\n";
     printf(msg, progname);
@@ -43,7 +45,7 @@ static void usage(const char *arg0)
 int main(int argc, char *argv[])
 {
     int opt;
-    while ((opt = getopt(argc, argv, "hDqtTrR")) != -1)
+    while ((opt = getopt(argc, argv, "hDqtTrRc:")) != -1)
     {
         switch (opt)
         {
@@ -68,6 +70,9 @@ int main(int argc, char *argv[])
             case 'R':
                 g_opts.reboot = false;
                 break;
+            case 'c':
+                g_opts.cmdline_txt = optarg;
+                break;
 
             default:
                 usage(argv[0]);
@@ -86,48 +91,71 @@ int main(int argc, char *argv[])
         usage(argv[0]);
         return 2;
     }
+    string url = argv[optind];
 
-    string url(argv[optind]);
-    //log_info("toggle = %d, reboot = %d, url = %s", g_opts.toggle, g_opts.reboot, url.c_str());
-
-#if 0
+    // done with argument parsing, time to do stuff
+    CPipe curl;
+    int err = 0;
     try
     {
-        stringvec cmdline = split_words_in_file("cmdline.txt");
-        printf("cmdline split:\n");
-        //dump_vec(cmdline, std::cout);
-        printf("%s\n", join_words(cmdline, " ").c_str());
-        printf("cmdline split done\n");
-    }
-    catch (std::exception& e)
-    {
-        log_error("Caught exception: %s", e.what());
-    }
-#endif
+        // parse cmdline.txt (will use it later)
+        stringvec cmdline = split_words_in_file(g_opts.cmdline_txt);
 
-    CPipe curl = open_curl(url);
-    bool err = false;
-    try
-    {
-        log_info("starting read");
-        while (true)
+        // fork off to curl to download the image
+        curl = open_curl(url);
+
+        // read the image header
+        nimg_hdr_t hdr;
+        ssize_t nread;
+        try { nread = cpipe_read(curl, &hdr, NIMG_HDR_SIZE); }
+        catch (exception& e) { log_error("failed to read image header"); throw; }
+
+        // validate the header
+        nimg_hdr_check_e hdr_check = nimg_hdr_check(&hdr);
+        if (hdr_check != NIMG_HDR_CHECK_SUCCESS)
+            throw PError("nImage header validation failed: %s", nimg_hdr_check_str(hdr_check));
+
+        uint64_t parts_bytes = 0;
+        for (int i = 0; i < hdr.n_parts; i++)
         {
-            char buf[4096];
-            ssize_t nread = cpipe_read(curl, buf, sizeof(buf));
-            if (nread > 0)
-                write(1, buf, nread);
-            else
-                break;
+            nimg_phdr_t *p = &hdr.parts[i];
+            ssize_t padding = p->offset - parts_bytes;
+            if (padding < 0)
+                throw PError("bad offset for part %d. offset=%llu but parts_read=%llu",
+                             i, (unsigned long long)p->offset, (unsigned long long)parts_bytes);
+            if (padding > 0)
+            {
+                char pbuf[padding];
+                if (cpipe_read(curl, pbuf, padding) < (size_t)padding)
+                    throw PError("failed to read %zu padding bytes before part %d", padding, i);
+            }
+
+            // this does the real work, and throws an exception for any failure
+            program_part(curl, p);
+            parts_bytes += p->size;
         }
-        cpipe_wait(curl, true);
     }
     catch (exception& e)
     {
-        log_error("failed to download: %s", e.what());
-        err = true;
+        log_error("%s", e.what());
+        if (curl.running)
+            kill(curl.pid, SIGTERM);
+        err++;
     }
 
-    log_info("done");
+    // clean up
+    try { cpipe_wait(curl, true); }
+    catch (exception& e)
+    {
+        // if there was an error above, we killed curl so don't complain about that
+        if (!err)
+            log_error("image download failed: %s", e.what());
+        err++;
+    }
 
-    return err ? 1 : 0;
+    if (!err)
+        log_info("newbs-swdl completed SUCCESS");
+    else
+        log_error("newbs_swdl completed FAILURE");
+    return err;
 }
