@@ -16,6 +16,9 @@
  ******************************************************************************/
 
 #include <cstdio>
+#include <cstring>
+#include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <unistd.h>
 
@@ -134,6 +137,39 @@ int main(int argc, char *argv[])
             program_part(curl, p);
             parts_bytes += p->size;
         }
+
+        // finished programming, see if we need to flip banks
+        // 0 = no bank flip, 1 = flip to ro rootfs, 2 = flip to rw rootfs
+        int flip_bank = 0;
+        for (int i = 0; i < hdr.n_parts; i++)
+        {
+            if (hdr.parts[i].type == NIMG_PTYPE_ROOTFS)
+                flip_bank = 1;
+            else if (hdr.parts[i].type == NIMG_PTYPE_ROOTFS_RW)
+                flip_bank = 2;
+        }
+        if (flip_bank)
+        {
+            cmdline_flip_bank(cmdline, flip_bank == 2);
+            string cmdline_txt_old = g_opts.cmdline_txt + ".old";
+            log_debug("backing up old %s as %s", g_opts.cmdline_txt.c_str(), cmdline_txt_old.c_str());
+            if (rename(g_opts.cmdline_txt.c_str(), cmdline_txt_old.c_str()) != 0)
+                log_error("failed to rename %s to %s: %s",
+                          g_opts.cmdline_txt.c_str(), cmdline_txt_old.c_str(), strerror(errno));
+
+            string new_cmdline = join_words(cmdline, " ");
+            log_debug("writing new cmdline '%s'", new_cmdline.c_str());
+
+            // use low level C APIs because magic C++ streams may throw exceptions and make it hard to use errno
+            new_cmdline += '\n';
+            int fd_write = open(g_opts.cmdline_txt.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
+            if (fd_write == -1)
+                THROW_ERRNO("failed to open %s for writing", g_opts.cmdline_txt.c_str());
+            ssize_t nwritten = write(fd_write, new_cmdline.c_str(), new_cmdline.length());
+            close(fd_write);
+            if (nwritten != (ssize_t)new_cmdline.length())
+                THROW_ERRNO("failed to write to %s", g_opts.cmdline_txt.c_str());
+        }
     }
     catch (exception& e)
     {
@@ -144,6 +180,8 @@ int main(int argc, char *argv[])
     }
 
     // clean up
+    if (curl.fd != -1)
+        close(curl.fd);
     try { cpipe_wait(curl, true); }
     catch (exception& e)
     {
@@ -152,6 +190,9 @@ int main(int argc, char *argv[])
             log_error("image download failed: %s", e.what());
         err++;
     }
+
+    log_debug("syncing filesystems");
+    sync();
 
     if (!err)
         log_info("newbs-swdl completed SUCCESS");

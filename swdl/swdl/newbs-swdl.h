@@ -59,7 +59,7 @@ int get_bank(const string& dev);
 int get_active_bank(const stringvec& cmdline);
 int get_inactive_bank(const stringvec& cmdline);
 string get_inactive_dev(const stringvec& cmdline);
-void cmdline_flip_bank(stringvec& cmdline);
+void cmdline_flip_bank(stringvec& cmdline, bool rw);
 
 // program.cpp functions
 void program_part(CPipe& curl, const nimg_phdr_t *phdr);
