@@ -20,6 +20,7 @@
 
 #include <exception>
 #include <string>
+#include <cstring>
 #include <errno.h>
 
 // PError: an exception class with a variadic constructor for constructing
