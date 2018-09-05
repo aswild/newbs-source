@@ -109,8 +109,7 @@ int main(int argc, char *argv[])
 
         // read the image header
         nimg_hdr_t hdr;
-        ssize_t nread;
-        try { nread = cpipe_read(curl, &hdr, NIMG_HDR_SIZE); }
+        try { cpipe_read(curl, &hdr, NIMG_HDR_SIZE); }
         catch (exception& e) { log_error("failed to read image header"); throw; }
 
         // validate the header
