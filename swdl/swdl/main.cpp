@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
             }
 
             // this does the real work, and throws an exception for any failure
-            program_part(curl, p);
+            program_part(curl, p, cmdline);
             parts_bytes += p->size;
         }
 

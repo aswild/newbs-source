@@ -62,7 +62,7 @@ string get_inactive_dev(const stringvec& cmdline);
 void cmdline_flip_bank(stringvec& cmdline, bool rw);
 
 // program.cpp functions
-void program_part(CPipe& curl, const nimg_phdr_t *phdr);
+void program_part(CPipe& curl, const nimg_phdr_t *p, const stringvec& cmdline);
 
 
 #endif // NEWBS_SWDL_H
