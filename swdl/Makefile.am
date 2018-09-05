@@ -27,7 +27,7 @@ bin_mknImage_SOURCES = $(LIBSOURCES) \
 if ENABLE_SWDL
 bin_PROGRAMS += bin/newbs-swdl
 bin_newbs_swdl_SOURCES = $(LIBSOURCES) \
-                         swdl/newbs-swdl.cpp \
+                         swdl/main.cpp \
                          swdl/flashbanks.cpp \
                          swdl/lib.cpp \
                          swdl/program.cpp \
