@@ -49,11 +49,14 @@ void cmd_help_create(void)
         "    usage: mknImage create [-n NAME] IMAGE_FILE TYPE1:FILE1 [TYPE2:FILE2]...\n"
         "      -n NAME: Name to embed in the image header (max %d chars)\n"
         "      FILE:    Output image file (must be a seekable file, not a pipe like stdout)\n"
-        "      TYPEn:   Image type. Valid options are: kernel, boot, rootfs, rootfs_rw\n"
+        "      TYPEn:   Image type\n"
         "      FILEn:   Input partition data filename\n"
-        "    Type kernel is the bare Linux kernel image. Type boot is the full boot partition\n"
+        "    Valid image types are:\n"
+        "      "
     "";
     printf(msg, NIMG_NAME_LEN);
+    for (int i = 1; i < NIMG_PTYPE_COUNT; i++)
+        printf("%s%c", nimg_ptype_names[i], (i == NIMG_PTYPE_COUNT-1) ? '\n' : ' ');
 }
 
 static void cleanup(void)
