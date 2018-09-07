@@ -38,6 +38,7 @@ typedef struct {
 } fileinfo_t;
 
 static const char *img_filename = NULL;
+static fileinfo_t *files = NULL;
 static int img_fd = -1;
 static bool create_success = false;
 
@@ -73,6 +74,9 @@ static void cleanup(void)
 
             img_fd = -1;
             img_filename = NULL;
+
+            free(files);
+            files = NULL;
         }
     }
 }
@@ -146,7 +150,7 @@ int cmd_create(int argc, char **argv)
     if (argc > NIMG_MAX_PARTS)
         DIE("too many image parts %d, max is %d", argc, NIMG_MAX_PARTS);
 
-    fileinfo_t *files = malloc(argc * sizeof(fileinfo_t));
+    files = malloc(argc * sizeof(fileinfo_t));
     assert(files != NULL);
 
     for (int i = 0; i < argc; i++)
