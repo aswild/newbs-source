@@ -41,7 +41,7 @@ static void usage(const char *arg0)
         "  -R   Do not reboot after download (default).\n"
         "  -c   cmdline.txt location (default /boot/cmdline.txt).\n"
         "\n"
-        "FILE:  Filename or URL to download\n";
+        "FILE:  Filename or URL to download. Use be '-' for stdin.\n";
     printf(msg, progname);
 }
 

@@ -63,6 +63,12 @@ CPipe open_curl(const string& url_)
 {
     string url;
 
+    if (url_ == "-")
+    {
+        log_info("reading image from stdin");
+        return { .pid = -1, .fd = STDIN_FILENO, .running = false };
+    }
+
     struct stat sb;
     if ((stat(url_.c_str(), &sb) == 0) && ((sb.st_mode & S_IFMT) != S_IFDIR))
     {
@@ -93,7 +99,7 @@ CPipe open_curl(const string& url_)
 
         // -s (be quiet), -S (still print errors)
         // -L (follow redirects), -f (report HTTP errors)
-        execlp("curl", "curl", "-sSLf", url.c_str(), NULL);
+        execlp("curl", "curl", "-sSLf", "--", url.c_str(), NULL);
         THROW_ERRNO("execlp() failed");
     }
 
