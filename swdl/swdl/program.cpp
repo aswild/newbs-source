@@ -16,6 +16,8 @@
  ******************************************************************************/
 
 #include <cstdlib>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "newbs-swdl.h"
 
@@ -52,11 +54,66 @@ static inline string get_boot_dir(void)
 #endif
 }
 
+// copy between file descriptors, return the crc32, throw an exception if something goes wrong
+// prints a . to stderr every chunk_size for progress, returns the crc32
+static uint32_t file_copy_crc32_progress(int fd_in, int fd_out, size_t len)
+{
+    // read and copy block_size bytes at a time, print a progress dot every chunk_size bytes
+    const size_t block_size = 8192;
+    const size_t chunk_size = 1048576 * 2;
+
+    uint8_t buf[block_size];
+    uint32_t crc = 0;
+    size_t total = 0, chunk_progress = 0;
+    while (total < len)
+    {
+        size_t to_read = min(block_size, len - total);
+        ssize_t nread = read(fd_in, buf, to_read);
+        if (nread < 0)
+            THROW_ERRNO("read failed");
+
+        ssize_t written = 0;
+        while (written < nread)
+        {
+            ssize_t nwrite = write(fd_out, buf+written, nread-written);
+            if (nwrite <= 0)
+                THROW_ERRNO("write failed");
+            written += nwrite;
+        }
+        assert(written == nread); // this should never really fail
+
+        xcrc32(&crc, buf, nread);
+        total += nread;
+        chunk_progress += nread;
+        if (chunk_progress >= chunk_size)
+        {
+            fputc('.', stderr);
+            chunk_progress = 0;
+        }
+    }
+    fputc('\n', stderr);
+    assert(total == len);
+    return crc;
+}
+
 static void program_raw(CPipe& curl, const nimg_phdr_t *p, const string& dev)
 {
-    // dummy for now
-    (void)curl;
-    log_info("program raw part type %d to %s", p->type, dev.c_str());
+    log_info("program raw part type %s (%zu bytes) to %s", part_name_from_type((nimg_ptype_e)p->type), (size_t)p->size, dev.c_str());
+    int fd_out = open(dev.c_str(), O_WRONLY);
+    if (fd_out == -1)
+        THROW_ERRNO("Failed to open %s for writing", dev.c_str());
+
+    uint32_t crc;
+    try { crc = file_copy_crc32_progress(curl.fd, fd_out, p->size); }
+    catch (exception& e) { close(fd_out); throw; }
+
+    log_debug("write finished calling fsync and close");
+    fsync(fd_out);
+    close(fd_out);
+
+    if (crc != p->crc32)
+        THROW_ERROR("CRC mismatch! expected 0x%08x, actual 0x%08x", p->crc32, crc);
+
 }
 
 static void program_boot_tar(CPipe& curl, const nimg_phdr_t *p, const string& bootdir)
