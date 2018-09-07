@@ -41,7 +41,7 @@ static const char usage_text[] =
 
 static void print_version(void)
 {
-    fputs("mknImage version " PACKAGE_VERSION "\n", stdout);
+    fputs("mknImage from newbs-swdl version " PACKAGE_VERSION "\n", stdout);
 }
 
 static void usage(void)
@@ -97,8 +97,9 @@ int main(int argc, char *argv[])
 
     if (optind >= argc)
     {
+        log_error("no command specified");
         usage();
-        exit(0);
+        exit(2);
     }
 
     argc -= optind;

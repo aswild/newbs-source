@@ -2,7 +2,7 @@
 
 AM_CPPFLAGS = -D_GNU_SOURCE -I$(srcdir)/lib
 AM_CFLAGS   = -std=gnu11 -Wall -Wextra -Werror
-AM_CXXFLAGS = -Wall -Wextra -Werror
+AM_CXXFLAGS = -std=gnu++14 -Wall -Wextra -Werror
 if ENABLE_LTO
 AM_CFLAGS += -flto
 AM_CXXFLAGS += -flto
@@ -32,4 +32,10 @@ bin_newbs_swdl_SOURCES = $(LIBSOURCES) \
                          swdl/lib.cpp \
                          swdl/program.cpp \
                          swdl/PError.h swdl/PError.cpp
+
+install-exec-hook:
+	ln -sfT newbs-swdl $(DESTDIR)$(bindir)/swdl
+
+uninstall-hook:
+	rm -f $(DESTDIR)$(bindir)/swdl
 endif

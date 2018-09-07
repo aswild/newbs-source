@@ -26,6 +26,11 @@
 
 SwdlOptions g_opts;
 
+static void print_version(void)
+{
+    fputs("newbs-swdl version " PACKAGE_VERSION "\n", stdout);
+}
+
 static void usage(const char *arg0)
 {
     const char *progname = arg0 ? arg0 : "newbs-swdl";
@@ -33,6 +38,7 @@ static void usage(const char *arg0)
         "Usage: %s [OPTIONS...] FILE\n"
         "Options:\n"
         "  -h   Show this help text.\n"
+        "  -V   Show program version.\n"
         "  -D   Enable debug logginc.\n"
         "  -q   Be more quiet.\n"
         "  -t   Toggle active rootfs bank if rootfs part is in image (default).\n"
@@ -42,18 +48,22 @@ static void usage(const char *arg0)
         "  -c   cmdline.txt location (default /boot/cmdline.txt).\n"
         "\n"
         "FILE:  Filename or URL to download. Use be '-' for stdin.\n";
+    print_version();
     printf(msg, progname);
 }
 
 int main(int argc, char *argv[])
 {
     int opt;
-    while ((opt = getopt(argc, argv, "hDqtTrRc:")) != -1)
+    while ((opt = getopt(argc, argv, "hVDqtTrRc:")) != -1)
     {
         switch (opt)
         {
             case 'h':
                 usage(argv[0]);
+                return 0;
+            case 'V':
+                print_version();
                 return 0;
             case 'D':
                 log_level = LOG_LEVEL_DEBUG;
@@ -190,7 +200,7 @@ int main(int argc, char *argv[])
         err++;
     }
 
-    log_debug("syncing filesystems");
+    log_info("syncing filesystems");
     sync();
 
     if (!err)

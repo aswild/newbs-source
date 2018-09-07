@@ -72,7 +72,7 @@ CPipe open_curl(const string& url_)
     struct stat sb;
     if ((stat(url_.c_str(), &sb) == 0) && ((sb.st_mode & S_IFMT) != S_IFDIR))
     {
-        log_debug("downloading local file %s", url_.c_str());
+        log_debug("using local file %s", url_.c_str());
         char *fullpath = realpath(url_.c_str(), NULL);
         if (fullpath == NULL)
             THROW_ERRNO("Failed to expand local file path %s", url_.c_str());
@@ -81,7 +81,7 @@ CPipe open_curl(const string& url_)
     }
     else url = url_;
 
-    log_debug("running curl with URL '%s'", url.c_str());
+    log_info("Flashing image '%s'", url.c_str());
 
     // opening some sort of URI, open a pipe and fork off to curl
     int pfd[2];
@@ -123,7 +123,6 @@ void cpipe_wait(CPipe& cp, bool block)
     pid_t waitret = waitpid(cp.pid, &wstatus, waitflags);
     if (waitret > 0)
     {
-        log_debug("waitpid something happened");
         cp.running = false;
         if (WIFEXITED(wstatus))
         {
@@ -135,7 +134,8 @@ void cpipe_wait(CPipe& cp, bool block)
         }
         else if (WIFSIGNALED(wstatus))
             throw PError("child process %d killed by signal %d", cp.pid, WTERMSIG(wstatus));
-
+        else
+            log_warn("child process %d exited, but not normally or by signal???", cp.pid);
     }
 }
 
