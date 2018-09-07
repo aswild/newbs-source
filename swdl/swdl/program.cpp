@@ -16,7 +16,9 @@
  ******************************************************************************/
 
 #include <cstdlib>
+#include <errno.h>
 #include <fcntl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "newbs-swdl.h"
@@ -96,9 +98,9 @@ static uint32_t file_copy_crc32_progress(int fd_in, int fd_out, size_t len)
     return crc;
 }
 
-static void program_raw(CPipe& curl, const nimg_phdr_t *p, const string& dev)
+static void program_raw(const CPipe& curl, const nimg_phdr_t *p, const string& dev)
 {
-    log_info("program raw part type %s (%zu bytes) to %s", part_name_from_type((nimg_ptype_e)p->type), (size_t)p->size, dev.c_str());
+    log_info("Program raw part type %s (%zu bytes) to %s", part_name_from_type((nimg_ptype_e)p->type), (size_t)p->size, dev.c_str());
     int fd_out = open(dev.c_str(), O_WRONLY);
     if (fd_out == -1)
         THROW_ERRNO("Failed to open %s for writing", dev.c_str());
@@ -106,21 +108,71 @@ static void program_raw(CPipe& curl, const nimg_phdr_t *p, const string& dev)
     uint32_t crc;
     try { crc = file_copy_crc32_progress(curl.fd, fd_out, p->size); }
     catch (exception& e) { close(fd_out); throw; }
-
-    log_debug("write finished calling fsync and close");
-    fsync(fd_out);
     close(fd_out);
 
     if (crc != p->crc32)
         THROW_ERROR("CRC mismatch! expected 0x%08x, actual 0x%08x", p->crc32, crc);
 
+    log_info("Finished programming part %s", part_name_from_type((nimg_ptype_e)p->type));
 }
 
-static void program_boot_tar(CPipe& curl, const nimg_phdr_t *p, const string& bootdir)
+static void program_boot_tar(const CPipe& curl, const nimg_phdr_t *p, const string& bootdir)
 {
-    // dummy for now
-    (void)curl;
-    log_info("program boot tar part type %d to %s", p->type, bootdir.c_str());
+    log_info("Program part type %s to %s", part_name_from_type((nimg_ptype_e)p->type), bootdir.c_str());
+
+    int pfd[2];
+    if (pipe(pfd) == -1)
+        THROW_ERRNO("pipe failed");
+
+    pid_t tar_pid = fork();
+    if (tar_pid == -1)
+        THROW_ERRNO("fork failed");
+
+    if (tar_pid == 0)
+    {
+        // child process
+        const char *argv[6];
+        argv[0] = "tar";
+        argv[1] = "-xf-";
+        if (p->type == NIMG_PTYPE_BOOT_TARGZ)
+            argv[2] = "-z";
+        else if (p->type == NIMG_PTYPE_BOOT_TARXZ)
+            argv[2] = "-J";
+        else
+            argv[2] = "--no-auto-compress";
+        argv[3] = "-C";
+        argv[4] = bootdir.c_str();
+        argv[5] = NULL;
+
+        close(pfd[1]); // close write end of pipe
+        dup2(pfd[0], STDIN_FILENO); // redirect stdin to read end of pipe
+        execvp(argv[0], (char *const *)argv);
+        log_error("execvp failed: %s", strerror(errno));
+        _exit(99);
+    }
+
+    // main process
+    close(pfd[0]); // close read end of pipe
+    uint32_t crc;
+    try { crc = file_copy_crc32_progress(curl.fd, pfd[1], p->size); }
+    catch (exception& e)
+    {
+        close(pfd[1]);
+        kill(tar_pid, SIGKILL);
+        int wstatus;
+        waitpid(tar_pid, &wstatus, 0);
+        log_error("Failed to program boot files! Your board may not boot!");
+        throw;
+    }
+
+    close(pfd[1]);
+    CPipe tar_cp = { .pid = tar_pid, .fd = -1, .running = true };
+    cpipe_wait(tar_cp, true);
+
+    if (crc != p->crc32)
+        THROW_ERROR("CRC mismatch! expected 0x%08x, actual 0x%08x", p->crc32, crc);
+
+    log_info("Finished programming part %s", part_name_from_type((nimg_ptype_e)p->type));
 }
 
 // program a partition with the given header and check the CRC
