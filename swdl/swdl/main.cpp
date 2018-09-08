@@ -129,6 +129,8 @@ int main(int argc, char *argv[])
         if (hdr_check != NIMG_HDR_CHECK_SUCCESS)
             throw PError("nImage header validation failed: %s", nimg_hdr_check_str(hdr_check));
 
+        log_info("Image name is %.*s", NIMG_NAME_LEN, hdr.name[0] ? hdr.name : "(empty)");
+
         if (hdr.n_parts == 0)
         {
             log_warn("No partitions in image, nothing to do!");
