@@ -46,9 +46,9 @@ void cmd_help_create(void)
 {
     static const char msg[] =
         "    Create an nImage.\n"
-        "    usage: mknImage create [-n NAME] IMAGE_FILE TYPE1:FILE1 [TYPE2:FILE2]...\n"
+        "    usage: mknImage create -o IMAGE_FILE [-n NAME] TYPE1:FILE1 [TYPE2:FILE2]...\n"
+        "      -o FILE: Output image file (must be a seekable file, not a pipe like stdout)\n"
         "      -n NAME: Name to embed in the image header (max %d chars)\n"
-        "      FILE:    Output image file (must be a seekable file, not a pipe like stdout)\n"
         "      TYPEn:   Image type\n"
         "      FILEn:   Input partition data filename\n"
         "    Valid image types are:\n"
@@ -126,10 +126,13 @@ int cmd_create(int argc, char **argv)
     char *img_name = NULL;
     int opt;
     optind = 1; // reset getopt state after main options parsing
-    while ((opt = getopt(argc, argv, "n:")) != -1)
+    while ((opt = getopt(argc, argv, "o:n:")) != -1)
     {
         switch (opt)
         {
+            case 'o':
+                img_filename = optarg;
+                break;
             case 'n':
                 if (strlen(optarg) > NIMG_NAME_LEN)
                     DIE_USAGE("image name too long");
@@ -143,14 +146,12 @@ int cmd_create(int argc, char **argv)
     argc -= optind;
     argv += optind;
 
-    if (argc < 2)
-        DIE_USAGE("create: not enough arguments");
+    if (img_filename == NULL)
+        DIE_USAGE("create: the -o options is required");
 
-    img_filename = argv[0];
-    argc--;
-    argv++;
-
-    if (argc > NIMG_MAX_PARTS)
+    if (argc < 1)
+        DIE_USAGE("create: no partitions specified");
+    else if (argc > NIMG_MAX_PARTS)
         DIE("too many image parts %d, max is %d", argc, NIMG_MAX_PARTS);
 
     files = malloc(argc * sizeof(fileinfo_t));
