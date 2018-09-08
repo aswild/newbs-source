@@ -173,13 +173,6 @@ int check_strtol(const char *str, int base, long *value)
     return (errno || endptr == str) ? -1 : 0;
 }
 
-FILE * open_file(const char *name, const char *mode)
-{
-    if (!strcmp(name, "-"))
-        return (mode[0] == 'r') ? stdin : stdout;
-    return fopen(name, mode);
-}
-
 // read count bytes from fd into buf, retrying indefinitely as long as we get
 // at least one byte.
 // If read returns 0, we assume EOF and set errno to 0.

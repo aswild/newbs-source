@@ -61,9 +61,6 @@ void cpipe_wait(CPipe& cp, bool block);
 size_t cpipe_read(CPipe& cp, void *buf, size_t count);
 
 // flashbanks.cpp functions
-int get_bank(const string& dev);
-int get_active_bank(const stringvec& cmdline);
-int get_inactive_bank(const stringvec& cmdline);
 string get_inactive_dev(const stringvec& cmdline);
 void cmdline_flip_bank(stringvec& cmdline, bool rw);
 

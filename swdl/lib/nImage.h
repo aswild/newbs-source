@@ -207,7 +207,6 @@ const char*     nimg_phdr_check_str(nimg_phdr_check_e status);
 
 ssize_t         file_copy_crc32(uint32_t *crc, long len, int fd_in, int fd_out);
 int             check_strtol(const char *str, int base, long *value);
-FILE*           open_file(const char *name, const char *mode);
 size_t          read_n(int fd, void *buf, size_t count);
 END_DECLS
 

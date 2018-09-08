@@ -27,7 +27,7 @@ static const char *rootfs_devs[N_BANKS] = {
     "/dev/mmcblk0p3",
 };
 
-int get_bank(const string& dev)
+static int get_bank(const string& dev)
 {
     for (int i = 0; i < N_BANKS; i++)
         if (dev == rootfs_devs[i])
@@ -35,7 +35,7 @@ int get_bank(const string& dev)
     return -1;
 }
 
-int get_active_bank(const stringvec& cmdline)
+static int get_active_bank(const stringvec& cmdline)
 {
     for (const string& arg : cmdline)
         if (arg.find("root=") == 0)
@@ -43,7 +43,7 @@ int get_active_bank(const stringvec& cmdline)
     return -1;
 }
 
-int get_inactive_bank(const stringvec& cmdline)
+static int get_inactive_bank(const stringvec& cmdline)
 {
     int active = get_active_bank(cmdline);
     if (active == -1)
