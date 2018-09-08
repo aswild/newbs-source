@@ -31,10 +31,16 @@ using std::vector;
 
 typedef std::vector<std::string> stringvec;
 
+// oxymoron class used to break from a try block
+class SuccessException { /* empty */ };
+
 struct SwdlOptions
 {
-    bool    toggle = true;
-    bool    reboot = false;
+    enum {
+        NO_FLIP,
+        FLIP,
+        FLIP_REBOOT,
+    } success_action = FLIP;
     string  cmdline_txt = string("/boot/cmdline.txt");
 };
 extern SwdlOptions g_opts;

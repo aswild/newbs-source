@@ -67,7 +67,7 @@ void cmdline_flip_bank(stringvec& cmdline, bool rw)
     string inactive_dev = get_inactive_dev(cmdline);
     if (inactive_dev.length() == 0)
         throw PError("couldn't find inactive rootfs bank from cmdline");
-    log_debug("flipping rootfs to %s %s", inactive_dev.c_str(), rw_str.c_str());
+    log_info("flipping rootfs to %s %s", inactive_dev.c_str(), rw_str.c_str());
 
     // remove any existing ro/rw entry
     for (auto it = cmdline.begin(); it != cmdline.end(); /* manual increment below */)

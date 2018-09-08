@@ -41,10 +41,9 @@ static void usage(const char *arg0)
         "  -V   Show program version.\n"
         "  -D   Enable debug logginc.\n"
         "  -q   Be more quiet.\n"
-        "  -t   Toggle active rootfs bank if rootfs part is in image (default).\n"
-        "  -T   Do not toggle active rootfs bank (opposite of -t).\n"
-        "  -r   Reboot after download.\n"
-        "  -R   Do not reboot after download (default).\n"
+        "  -t   Flip rootfs bank if rootfs part is in image (default).\n"
+        "  -r   Flip rootfs bank an reboot after download.\n"
+        "  -T   Do not flip rootfs bank or reboot.\n"
         "  -c   cmdline.txt location (default /boot/cmdline.txt).\n"
         "\n"
         "FILE:  Filename or URL to download. Use be '-' for stdin.\n";
@@ -55,7 +54,7 @@ static void usage(const char *arg0)
 int main(int argc, char *argv[])
 {
     int opt;
-    while ((opt = getopt(argc, argv, "hVDqtTrRc:")) != -1)
+    while ((opt = getopt(argc, argv, "hVDqtrTc:")) != -1)
     {
         switch (opt)
         {
@@ -72,16 +71,13 @@ int main(int argc, char *argv[])
                 log_level = LOG_LEVEL_ERROR;
                 break;
             case 't':
-                g_opts.toggle = true;
-                break;
-            case 'T':
-                g_opts.toggle = false;
+                g_opts.success_action = SwdlOptions::FLIP;
                 break;
             case 'r':
-                g_opts.reboot = true;
+                g_opts.success_action = SwdlOptions::FLIP_REBOOT;
                 break;
-            case 'R':
-                g_opts.reboot = false;
+            case 'T':
+                g_opts.success_action = SwdlOptions::NO_FLIP;
                 break;
             case 'c':
                 g_opts.cmdline_txt = optarg;
@@ -127,6 +123,12 @@ int main(int argc, char *argv[])
         if (hdr_check != NIMG_HDR_CHECK_SUCCESS)
             throw PError("nImage header validation failed: %s", nimg_hdr_check_str(hdr_check));
 
+        if (hdr.n_parts == 0)
+        {
+            log_warn("No partitions in image, nothing to do!");
+            throw SuccessException();
+        }
+
         uint64_t parts_bytes = 0;
         for (int i = 0; i < hdr.n_parts; i++)
         {
@@ -145,6 +147,12 @@ int main(int argc, char *argv[])
             // this does the real work, and throws an exception for any failure
             program_part(curl, p, cmdline);
             parts_bytes += p->size;
+        }
+
+        if (g_opts.success_action == SwdlOptions::NO_FLIP)
+        {
+            log_info("not flipping banks or rebooting");
+            throw SuccessException();
         }
 
         // finished programming, see if we need to flip banks
@@ -179,7 +187,12 @@ int main(int argc, char *argv[])
             if (nwritten != (ssize_t)new_cmdline.length())
                 THROW_ERRNO("failed to write to %s", g_opts.cmdline_txt.c_str());
         }
+        else
+        {
+            log_info("no rootfs download, bank flip not needed");
+        }
     }
+    catch (SuccessException&) { /* no-op */ }
     catch (exception& e)
     {
         log_error("%s", e.what());
@@ -203,9 +216,29 @@ int main(int argc, char *argv[])
     log_info("syncing filesystems");
     sync();
 
-    if (!err)
-        log_info("newbs-swdl completed SUCCESS");
-    else
+    if (err)
+    {
         log_error("newbs_swdl completed FAILURE");
+    }
+    else
+    {
+        log_info("newbs-swdl completed SUCCESS");
+        if (g_opts.success_action == SwdlOptions::FLIP_REBOOT)
+        {
+            const int reboot_wait_sec = 5;
+            log_info("Reboot in %d seconds. Press Ctrl-C to cancel", reboot_wait_sec);
+            sleep(5); // default SIGINT handler here will kill the process
+#ifdef SWDL_TEST
+            log_info("SWDL test enabled, not actually rebooting!");
+#else
+            log_info("Rebooting now!");
+            if (geteuid() == 0)
+                system("reboot"); // system command because I'm lazy
+            else
+                system("sudo reboot");
+#endif
+        }
+    }
+
     return err;
 }
