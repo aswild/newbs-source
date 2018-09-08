@@ -113,6 +113,12 @@ int main(int argc, char *argv[])
         // fork off to curl to download the image
         curl = open_curl(url);
 
+        // ignore SIGPIPE so that we can handle errors when writes fail.
+        // This can happen when programming a corrupted tar part because
+        // tar will exit and close the pipe we're writing to.
+        // As long as we always check the return code of write(), this should be safe.
+        signal(SIGPIPE, SIG_IGN);
+
         // read the image header
         nimg_hdr_t hdr;
         try { cpipe_read(curl, &hdr, NIMG_HDR_SIZE); }

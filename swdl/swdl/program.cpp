@@ -161,8 +161,7 @@ static void program_boot_tar(const CPipe& curl, const nimg_phdr_t *p, const stri
         kill(tar_pid, SIGKILL);
         int wstatus;
         waitpid(tar_pid, &wstatus, 0);
-        log_error("Failed to program boot files! Your board may not boot!");
-        throw;
+        throw PError("%s\nFailed to program boot files! YOUR BOARD MAY NOT BOOT!", e.what());
     }
 
     close(pfd[1]);
