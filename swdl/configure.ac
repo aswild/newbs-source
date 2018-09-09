@@ -1,4 +1,4 @@
-AC_INIT([newbs-swdl], [1.0])
+AC_INIT([newbs-swdl], [1.1-dev])
 AM_INIT_AUTOMAKE([foreign no-dist subdir-objects -Wall -Werror])
 AM_SILENT_RULES([yes])
 
