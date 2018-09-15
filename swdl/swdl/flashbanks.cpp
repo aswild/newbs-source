@@ -56,18 +56,17 @@ string get_inactive_dev(const stringvec& cmdline)
     int bank = get_inactive_bank(cmdline);
     if (bank == -1)
         return string();
+    log_debug("inactive dev is %s", rootfs_devs[bank]);
     return string(rootfs_devs[bank]);
 }
 
 // update the root= entry in cmdline in-place
 // add "ro" or "rw" after the root entry depending on the rw bool
-void cmdline_flip_bank(stringvec& cmdline, bool rw)
+void cmdline_set_root(stringvec& cmdline, const string& new_root, bool rw)
 {
-    string rw_str = rw ? "rw" : "ro";
-    string inactive_dev = get_inactive_dev(cmdline);
-    if (inactive_dev.length() == 0)
-        throw PError("couldn't find inactive rootfs bank from cmdline");
-    log_info("flipping rootfs to %s %s", inactive_dev.c_str(), rw_str.c_str());
+    const string rw_str = rw ? "rw" : "ro";
+    assert(new_root.length());
+    log_info("flipping rootfs to %s %s", new_root.c_str(), rw_str.c_str());
 
     // remove any existing ro/rw entry
     for (auto it = cmdline.begin(); it != cmdline.end(); /* manual increment below */)
@@ -83,7 +82,7 @@ void cmdline_flip_bank(stringvec& cmdline, bool rw)
     {
         if (it->find("root=") == 0)
         {
-            *it = "root=" + inactive_dev;
+            *it = "root=" + new_root;
             cmdline.insert(it+1, rw_str);
             return;
         }
@@ -91,6 +90,6 @@ void cmdline_flip_bank(stringvec& cmdline, bool rw)
 
     // if we get here, no root element was found so add it to the end
     log_warn("no root device argument found in existing kernel cmdline");
-    cmdline.push_back("root=" + inactive_dev);
+    cmdline.push_back("root=" + new_root);
     cmdline.push_back(rw_str);
 }

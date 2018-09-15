@@ -24,6 +24,7 @@
 #include "newbs-swdl.h"
 
 // TODO: these should all be configurable instead of hard-coded
+#if 0 // not used yet
 static inline string get_boot_dev(void)
 {
 #ifdef SWDL_TEST
@@ -32,6 +33,7 @@ static inline string get_boot_dev(void)
     return "/dev/mmcblk0p1";
 #endif
 }
+#endif
 
 static inline string _get_inactive_dev(const stringvec& cmdline)
 {
@@ -186,7 +188,9 @@ void program_part(CPipe& curl, const nimg_phdr_t *p, const stringvec& cmdline)
     switch (type)
     {
         case NIMG_PTYPE_BOOT_IMG:
-            program_raw(curl, p, get_boot_dev());
+            // need to supporting unmount/remounting /boot before this can actually work
+            //program_raw(curl, p, get_boot_dev());
+            throw PError("The boot_img partition type is not yet supported");
             break;
 
         case NIMG_PTYPE_ROOTFS:

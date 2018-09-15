@@ -62,7 +62,7 @@ size_t cpipe_read(CPipe& cp, void *buf, size_t count);
 
 // flashbanks.cpp functions
 string get_inactive_dev(const stringvec& cmdline);
-void cmdline_flip_bank(stringvec& cmdline, bool rw);
+void cmdline_set_root(stringvec& cmdline, const string& new_root, bool rw);
 
 // program.cpp functions
 void program_part(CPipe& curl, const nimg_phdr_t *p, const stringvec& cmdline);

@@ -44,7 +44,9 @@ static void usage(const char *arg0)
         "  -t   Flip rootfs bank if rootfs part is in image (default).\n"
         "  -r   Flip rootfs bank an reboot after download.\n"
         "  -T   Do not flip rootfs bank or reboot.\n"
-        "  -c   cmdline.txt location (default /boot/cmdline.txt).\n"
+#ifdef SWDL_TEST
+        "  -c   cmdline.txt location (used for SWDL_TEST).\n"
+#endif
         "\n"
         "FILE:  Filename or URL to download. Use be '-' for stdin.\n";
     print_version();
@@ -80,7 +82,11 @@ int main(int argc, char *argv[])
                 g_opts.success_action = SwdlOptions::NO_FLIP;
                 break;
             case 'c':
+#ifdef SWDL_TEST
                 g_opts.cmdline_txt = optarg;
+#else
+                log_warn("the -c option is only used when built with swdl test mode");
+#endif
                 break;
 
             default:
@@ -107,9 +113,6 @@ int main(int argc, char *argv[])
     int err = 0;
     try
     {
-        // parse cmdline.txt (will use it later)
-        stringvec cmdline = split_words_in_file(g_opts.cmdline_txt);
-
         // fork off to curl to download the image
         curl = open_curl(url);
 
@@ -136,6 +139,13 @@ int main(int argc, char *argv[])
             log_warn("No partitions in image, nothing to do!");
             throw SuccessException();
         }
+
+        // get the inactive rootfs device based on what's running unless we're testing
+#ifdef SWDL_TEST
+        stringvec cmdline = split_words_in_file(g_opts.cmdline_txt);
+#else
+        stringvec cmdline = split_words_in_file("/proc/cmdline");
+#endif
 
         uint64_t parts_bytes = 0;
         for (int i = 0; i < hdr.n_parts; i++)
@@ -175,24 +185,27 @@ int main(int argc, char *argv[])
         }
         if (flip_bank)
         {
-            cmdline_flip_bank(cmdline, flip_bank == 2);
+            // load whatever cmdline.txt we just programmed and update the rootfs bank
+            stringvec new_cmdline = split_words_in_file(g_opts.cmdline_txt);
+            cmdline_set_root(new_cmdline, get_inactive_dev(cmdline), flip_bank == 2);
+
             string cmdline_txt_old = g_opts.cmdline_txt + ".old";
             log_debug("backing up old %s as %s", g_opts.cmdline_txt.c_str(), cmdline_txt_old.c_str());
             if (rename(g_opts.cmdline_txt.c_str(), cmdline_txt_old.c_str()) != 0)
                 log_error("failed to rename %s to %s: %s",
                           g_opts.cmdline_txt.c_str(), cmdline_txt_old.c_str(), strerror(errno));
 
-            string new_cmdline = join_words(cmdline, " ");
-            log_debug("writing new cmdline '%s'", new_cmdline.c_str());
+            string new_cmdline_s = join_words(new_cmdline, " ");
+            log_debug("writing new cmdline '%s'", new_cmdline_s.c_str());
+            new_cmdline_s += '\n'; // add the trailing newline after the debug log
 
             // use low level C APIs because magic C++ streams may throw exceptions and make it hard to use errno
-            new_cmdline += '\n';
             int fd_write = open(g_opts.cmdline_txt.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
             if (fd_write == -1)
                 THROW_ERRNO("failed to open %s for writing", g_opts.cmdline_txt.c_str());
-            ssize_t nwritten = write(fd_write, new_cmdline.c_str(), new_cmdline.length());
+            ssize_t nwritten = write(fd_write, new_cmdline_s.c_str(), new_cmdline_s.length());
             close(fd_write);
-            if (nwritten != (ssize_t)new_cmdline.length())
+            if (nwritten != (ssize_t)new_cmdline_s.length())
                 THROW_ERRNO("failed to write to %s", g_opts.cmdline_txt.c_str());
         }
         else
