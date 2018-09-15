@@ -102,7 +102,8 @@ static uint32_t file_copy_crc32_progress(int fd_in, int fd_out, size_t len)
 
 static void program_raw(const CPipe& curl, const nimg_phdr_t *p, const string& dev)
 {
-    log_info("Program raw part type %s (%zu bytes) to %s", part_name_from_type((nimg_ptype_e)p->type), (size_t)p->size, dev.c_str());
+    log_info("Program raw part type %s (%s) to %s",
+             part_name_from_type((nimg_ptype_e)p->type), human_bytes(p->size), dev.c_str());
     int fd_out = open(dev.c_str(), O_WRONLY);
     if (fd_out == -1)
         THROW_ERRNO("Failed to open %s for writing", dev.c_str());
@@ -120,7 +121,8 @@ static void program_raw(const CPipe& curl, const nimg_phdr_t *p, const string& d
 
 static void program_boot_tar(const CPipe& curl, const nimg_phdr_t *p, const string& bootdir)
 {
-    log_info("Program part type %s to %s", part_name_from_type((nimg_ptype_e)p->type), bootdir.c_str());
+    log_info("Program part type %s (%s) to %s",
+             part_name_from_type((nimg_ptype_e)p->type), human_bytes(p->size), bootdir.c_str());
 
     int pfd[2];
     if (pipe(pfd) == -1)

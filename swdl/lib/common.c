@@ -54,8 +54,10 @@ void print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp)
     if (prefix == NULL)
         prefix = "";
     fprintf(fp, "%stype:   %s\n",          prefix, part_name_from_type(p->type));
-    fprintf(fp, "%ssize:   %lu (0x%lx)\n", prefix, (unsigned long)p->size, (unsigned long)p->size);
-    fprintf(fp, "%soffset: %lu (0x%lx)\n", prefix, (unsigned long)p->offset, (unsigned long)p->offset);
+    fprintf(fp, "%ssize:   %s (%lu, 0x%lx)\n",
+            prefix, human_bytes(p->size), (unsigned long)p->size, (unsigned long)p->size);
+    fprintf(fp, "%soffset: %s (%lu, 0x%lx)\n",
+            prefix, human_bytes(p->offset), (unsigned long)p->offset, (unsigned long)p->offset);
     fprintf(fp, "%scrc32:  0x%x\n",        prefix, p->crc32);
 }
 
@@ -194,4 +196,37 @@ size_t read_n(int fd, void *buf, size_t count)
         cbuf += n;
     }
     return total;
+}
+
+// format a number of bytes into a human-readable format
+// returns a pointer to a static buffer
+const char* human_bytes(size_t s)
+{
+    static char buf[32];
+    const char *suffix;
+    int div;
+    if (s > (1<<30))
+    {
+        suffix = "GB";
+        div = 1<<30;
+    }
+    else if (s > (1<<20))
+    {
+        suffix = "MB";
+        div = 1<<20;
+    }
+    else if (s > (1<<10))
+    {
+        suffix = "KB";
+        div = 1<<10;
+    }
+    else
+    {
+        // special case for no div, don't do floating-point stuff
+        snprintf(buf, sizeof(buf), "%zu bytes", s);
+        return buf;
+    }
+
+    snprintf(buf, sizeof(buf), "%.2f %s", ((double)s / (double)div), suffix);
+    return buf;
 }
