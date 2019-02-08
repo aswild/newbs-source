@@ -164,8 +164,16 @@ int cmd_create(int argc, char **argv)
     nimg_hdr_t hdr;
     nimg_hdr_init(&hdr);
     hdr.n_parts = argc;
+
+    // this strncpy may leave hdr.name without a null terminator, but that's OK
+    // (since we always know the max size, a null terminator isn't necessary in
+    // the nimage header).
+    // Use GCC pragmas to ignore that error here
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
     if (img_name != NULL)
         strncpy(hdr.name, img_name, NIMG_NAME_LEN);
+#pragma GCC diagnostic pop
 
     log_info("Creating image %s", img_filename);
     if (img_name != NULL)

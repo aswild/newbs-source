@@ -1,8 +1,8 @@
 # mknImage Makefile
 
 AM_CPPFLAGS = -D_GNU_SOURCE -I$(srcdir)/lib
-AM_CFLAGS   = -std=gnu11 -Wall -Wextra -Werror
-AM_CXXFLAGS = -std=gnu++14 -Wall -Wextra -Werror
+AM_CFLAGS   = -std=gnu11 -Wall -Wextra -Werror -Wno-unknown-warning-option
+AM_CXXFLAGS = -std=gnu++14 -Wall -Wextra -Werror -Wno-unknown-warning-option
 if ENABLE_LTO
 AM_CFLAGS += -flto
 AM_CXXFLAGS += -flto
