@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2018 Allen Wild <allenwild93@gmail.com>
+ * Copyright (C) 2018-2019 Allen Wild <allenwild93@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,11 +44,12 @@ static void usage(const char *arg0)
         "  -t   Flip rootfs bank if rootfs part is in image (default).\n"
         "  -r   Flip rootfs bank an reboot after download.\n"
         "  -T   Do not flip rootfs bank or reboot.\n"
-#ifdef SWDL_TEST
-        "  -c   cmdline.txt location (used for SWDL_TEST).\n"
-#endif
+        "  -b   boot device node (used for debugging, probably a loop device.\n"
+        "       When using a loop device, run losetup manually so the loop isn't\n"
+        "       automatically removed when swdl unmounts it.\n"
+        "  -c   cmdline.txt location (used for debugging).\n"
         "\n"
-        "FILE:  Filename or URL to download. Use be '-' for stdin.\n";
+        "FILE:  Filename or URL to download. Use '-' for stdin.\n";
     print_version();
     printf(msg, progname);
 }
@@ -56,7 +57,7 @@ static void usage(const char *arg0)
 int main(int argc, char *argv[])
 {
     int opt;
-    while ((opt = getopt(argc, argv, "hVDqtrTc:")) != -1)
+    while ((opt = getopt(argc, argv, "hVDqtrTb:c:")) != -1)
     {
         switch (opt)
         {
@@ -81,12 +82,18 @@ int main(int argc, char *argv[])
             case 'T':
                 g_opts.success_action = SwdlOptions::NO_FLIP;
                 break;
-            case 'c':
+            case 'b':
 #ifdef SWDL_TEST
-                g_opts.cmdline_txt = optarg;
-#else
-                log_warn("the -c option is only used when built with swdl test mode");
+                if (strncmp(optarg, "/dev/loop", strlen("/dev/loop")))
+                {
+                    log_error("When compiled with SWDL_TEST, the boot device must be /dev/loopX");
+                    return 2;
+                }
 #endif
+                g_opts.boot_dev = optarg;
+                break;
+            case 'c':
+                g_opts.cmdline_txt = optarg;
                 break;
 
             default:

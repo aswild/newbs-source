@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2018 Allen Wild <allenwild93@gmail.com>
+ * Copyright (C) 2018-2019 Allen Wild <allenwild93@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 
 #include <exception>
 #include <iostream>
+#include <string>
 #include <vector>
 
 #include "nImage.h"
@@ -41,7 +42,12 @@ struct SwdlOptions
         FLIP,
         FLIP_REBOOT,
     } success_action = FLIP;
-    string  cmdline_txt = string("/boot/cmdline.txt");
+    string cmdline_txt = string("/boot/cmdline.txt");
+#ifdef SWDL_TEST
+    string boot_dev = string("/dev/loop0");
+#else
+    string boot_dev = string("/dev/mmcblk0p1");
+#endif
 };
 extern SwdlOptions g_opts;
 
@@ -63,6 +69,8 @@ size_t cpipe_read(CPipe& cp, void *buf, size_t count);
 // flashbanks.cpp functions
 string get_inactive_dev(const stringvec& cmdline);
 void cmdline_set_root(stringvec& cmdline, const string& new_root, bool rw);
+bool find_mntent(const string& dev, struct mntent *ment);
+void mount_mntent(const struct mntent *m);
 
 // program.cpp functions
 void program_part(CPipe& curl, const nimg_phdr_t *p, const stringvec& cmdline);

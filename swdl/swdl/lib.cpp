@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2018 Allen Wild <allenwild93@gmail.com>
+ * Copyright (C) 2018-2019 Allen Wild <allenwild93@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,10 +21,12 @@
 #include <vector>
 #include <iterator>
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <errno.h>
 #include <fcntl.h>
+#include <mntent.h>
 #include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -159,4 +161,88 @@ size_t cpipe_read(CPipe& cp, void *buf, size_t count)
         }
     }
     return nread;
+}
+
+// put the first found mount entry info into *ment, returns whether a mount was found.
+// there can be multiple mount points for the same device, an exception will be thrown
+// if that happens
+bool find_mntent(const string& dev, struct mntent *ment)
+{
+    assert(ment != NULL);
+    const char *_dev = dev.c_str();
+
+    FILE *fp = fopen("/etc/mtab", "r");
+    if (fp == NULL)
+        THROW_ERRNO("Failed to open /etc/mtab for reading");
+
+    bool found = false;
+    struct mntent *m;
+    while ((m = getmntent(fp)) != NULL)
+    {
+        if (!strcmp(_dev, m->mnt_fsname))
+        {
+            if (found)
+            {
+                fclose(fp);
+                throw PError("boot device %s is mounted in multiple places, aborting", _dev);
+            }
+
+            // deep copy the mntent
+            memset(ment, 0, sizeof(*ment));
+            ment->mnt_fsname = strdup(m->mnt_fsname);
+            ment->mnt_dir    = strdup(m->mnt_dir);
+            ment->mnt_type   = strdup(m->mnt_type);
+            ment->mnt_opts   = strdup(m->mnt_opts);
+            if (!(ment->mnt_fsname && ment->mnt_dir && ment->mnt_type && ment->mnt_opts))
+            {
+                fclose(fp);
+                THROW_ERROR("failed to copy mntent, strdup failed");
+            }
+            found = true;
+        }
+    }
+
+    fclose(fp);
+    return found;
+}
+
+// re-mount the filesystem mount described in m.
+// Do this by forking a mount(8) process rather than using mount(2)
+// because it'd be tedious and unreliable to convert the string mnt_opts
+// to a set of integer flags needed by mount(2).
+void mount_mntent(const struct mntent *m)
+{
+    assert(m != NULL);
+    pid_t cpid = fork();
+    if (cpid < 0)
+        THROW_ERRNO("fork() failed");
+    else if (cpid == 0)
+    {
+        execlp("mount", "mount", "-t", m->mnt_type, "-o", m->mnt_opts,
+               m->mnt_fsname, m->mnt_dir, NULL);
+        fprintf(stderr, "%s: execlp failed: %s\n", __func__, strerror(errno));
+        _exit(200);
+    }
+    else
+    {
+        log_debug("spawned mount process PID %d", cpid);
+        int wstatus = 0;
+        pid_t waitret = waitpid(cpid, &wstatus, 0);
+        if (waitret < 0)
+            THROW_ERRNO("failed to wait for mount process");
+
+        if (WIFEXITED(wstatus))
+        {
+            if (WEXITSTATUS(wstatus) == 0)
+                log_debug("mount process exited successfully");
+            else
+                throw PError("Failed to mount %s, mount returned %d",
+                             m->mnt_fsname, WEXITSTATUS(wstatus));
+        }
+        else if (WIFSIGNALED(wstatus))
+            throw PError("Failed to mount %s, mount killed by signal %d",
+                         m->mnt_fsname, WTERMSIG(wstatus));
+        else
+            throw PError("Failed to mount %s, mount exited in an unknown manner", m->mnt_fsname);
+    }
 }

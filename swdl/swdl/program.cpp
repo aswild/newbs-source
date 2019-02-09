@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2018 Allen Wild <allenwild93@gmail.com>
+ * Copyright (C) 2018-2019 Allen Wild <allenwild93@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,22 +18,12 @@
 #include <cstdlib>
 #include <errno.h>
 #include <fcntl.h>
+#include <mntent.h>
+#include <sys/mount.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "newbs-swdl.h"
-
-// TODO: these should all be configurable instead of hard-coded
-#if 0 // not used yet
-static inline string get_boot_dev(void)
-{
-#ifdef SWDL_TEST
-    return "/dev/null";
-#else
-    return "/dev/mmcblk0p1";
-#endif
-}
-#endif
 
 static inline string _get_inactive_dev(const stringvec& cmdline)
 {
@@ -178,6 +168,46 @@ static void program_boot_tar(const CPipe& curl, const nimg_phdr_t *p, const stri
     log_info("Finished programming part %s", part_name_from_type((nimg_ptype_e)p->type));
 }
 
+static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
+{
+    struct mntent bootmnt = {};
+    bool was_mounted = find_mntent(g_opts.boot_dev, &bootmnt);
+    if (was_mounted)
+    {
+        log_info("unmounting %s", bootmnt.mnt_dir);
+        if (umount(bootmnt.mnt_dir) < 0)
+            THROW_ERRNO("Failed to unmount boot device %s", bootmnt.mnt_dir);
+    }
+
+    // program_raw might throw an exception, which we have to catch so we can clean up
+    // (i.e. maybe remount /boot)
+    string err_msg;
+    try { program_raw(curl, p, g_opts.boot_dev); }
+    catch (exception& e) { err_msg += e.what(); }
+
+    // try to remount
+    if (was_mounted)
+    {
+        try
+        {
+            log_info("remounting %s on %s", bootmnt.mnt_fsname, bootmnt.mnt_dir);
+            mount_mntent(&bootmnt);
+        }
+        catch (exception& e)
+        {
+            // combine the mount error with the program_raw error
+            if (err_msg.length() > 0)
+                err_msg += '\n';
+            err_msg += e.what();
+        }
+    }
+
+    if (err_msg.length() > 0)
+        throw PError(err_msg);
+
+    log_info("Finished programming boot image");
+}
+
 // program a partition with the given header and check the CRC
 // throw an exception if anything goes wrong
 void program_part(CPipe& curl, const nimg_phdr_t *p, const stringvec& cmdline)
@@ -190,9 +220,7 @@ void program_part(CPipe& curl, const nimg_phdr_t *p, const stringvec& cmdline)
     switch (type)
     {
         case NIMG_PTYPE_BOOT_IMG:
-            // need to supporting unmount/remounting /boot before this can actually work
-            //program_raw(curl, p, get_boot_dev());
-            throw PError("The boot_img partition type is not yet supported");
+            program_boot_img(curl, p);
             break;
 
         case NIMG_PTYPE_ROOTFS:
