@@ -6,6 +6,9 @@ AC_CANONICAL_HOST
 AC_PROG_CC
 AC_PROG_CXX
 
+AC_ARG_ENABLE([sanitize], AS_HELP_STRING([--enable-sanitize], [Enable address and undefined GCC/clang sanitizers]))
+AM_CONDITIONAL([ENABLE_SANITIZE], [test "$enable_sanitize" = "yes"])
+
 AC_ARG_ENABLE([lto], AS_HELP_STRING([--disable-lto], [Disable Link Time Optimization]))
 AM_CONDITIONAL([ENABLE_LTO], [test "$enable_lto" != "no"])
 

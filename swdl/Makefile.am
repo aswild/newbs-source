@@ -3,6 +3,10 @@
 AM_CPPFLAGS = -D_GNU_SOURCE -I$(srcdir)/lib
 AM_CFLAGS   = -std=gnu11 -Wall -Wextra -Werror
 AM_CXXFLAGS = -std=gnu++14 -Wall -Wextra -Werror
+if ENABLE_SANITIZE
+AM_CFLAGS += -fsanitize=address -fsanitize=undefined
+AM_CXXFLAGS += -fsanitize=address -fsanitize=undefined
+endif
 if ENABLE_LTO
 AM_CFLAGS += -flto
 AM_CXXFLAGS += -flto
