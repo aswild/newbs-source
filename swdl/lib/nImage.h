@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2018 Allen Wild <allenwild93@gmail.com>
+ * Copyright (C) 2018-2019 Allen Wild <allenwild93@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -52,7 +52,10 @@
 
 #define NIMG_HDR_MAGIC   0x474d49534257454eULL /* "NEWBSIMG" */
 #define NIMG_PHDR_MAGIC  0x54524150474d494eULL /* "NIMGPART" */
-#define NIMG_HDR_VERSION 1
+#define NIMG_HDR_VERSION 2
+
+#define NIMG_HDR_VERSION_MIN_SUPPORTED 1
+#define NIMG_HDR_VERSION_MAX_SUPPORTED NIMG_HDR_VERSION
 
 #define NIMG_HDR_SIZE   1024
 #define NIMG_PHDR_SIZE  32
@@ -68,6 +71,9 @@ typedef enum {
     NIMG_PTYPE_BOOT_TARXZ,
     NIMG_PTYPE_ROOTFS,
     NIMG_PTYPE_ROOTFS_RW,
+    // added in version 2
+    NIMG_PTYPE_BOOT_IMG_GZ,
+    NIMG_PTYPE_BOOT_IMG_XZ,
 
     NIMG_PTYPE_COUNT,
     NIMG_PTYPE_LAST = NIMG_PTYPE_COUNT - 1
@@ -84,6 +90,9 @@ const char *nimg_ptype_names[] = {
     "boot_tarxz",
     "rootfs",
     "rootfs_rw",
+    // added in version 2
+    "boot_img_gz",
+    "boot_img_xz",
 };
 static_assert(sizeof(nimg_ptype_names) == (NIMG_PTYPE_COUNT * sizeof(char*)),
               "wrong number of elements  in nimg_ptype_names");
@@ -189,6 +198,7 @@ typedef enum {
     NIMG_PHDR_CHECK_SUCCESS = 0,
     NIMG_PHDR_CHECK_BAD_MAGIC,
     NIMG_PHDR_CHECK_BAD_TYPE,
+    NIMG_PHDR_CHECK_WRONG_VERSION,
 } nimg_phdr_check_e;
 
 BEGIN_DECLS
@@ -201,7 +211,7 @@ const char*     part_name_from_type(nimg_ptype_e id);
 void            nimg_hdr_init(nimg_hdr_t *h);
 void            print_part_info(nimg_phdr_t *p, const char *prefix, FILE *fp);
 nimg_hdr_check_e    nimg_hdr_check(const nimg_hdr_t *h);
-nimg_phdr_check_e   nimg_phdr_check(const nimg_phdr_t *h);
+nimg_phdr_check_e   nimg_phdr_check(const nimg_phdr_t *h, uint8_t hdr_version);
 const char*     nimg_hdr_check_str(nimg_hdr_check_e status);
 const char*     nimg_phdr_check_str(nimg_phdr_check_e status);
 

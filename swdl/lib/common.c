@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2018 Allen Wild <allenwild93@gmail.com>
+ * Copyright (C) 2018-2019 Allen Wild <allenwild93@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,7 +65,7 @@ nimg_hdr_check_e nimg_hdr_check(const nimg_hdr_t *h)
 {
     if (h->magic != NIMG_HDR_MAGIC)
         return NIMG_HDR_CHECK_BAD_MAGIC;
-    if (h->version != NIMG_HDR_VERSION)
+    if (h->version < NIMG_HDR_VERSION_MIN_SUPPORTED || h->version > NIMG_HDR_VERSION_MAX_SUPPORTED)
         return NIMG_HDR_CHECK_BAD_VERSION;
     if (h->n_parts > NIMG_MAX_PARTS)
         return NIMG_HDR_CHECK_TOO_MANY_PARTS;
@@ -78,12 +78,14 @@ nimg_hdr_check_e nimg_hdr_check(const nimg_hdr_t *h)
     return NIMG_HDR_CHECK_SUCCESS;
 }
 
-nimg_phdr_check_e nimg_phdr_check(const nimg_phdr_t *h)
+nimg_phdr_check_e nimg_phdr_check(const nimg_phdr_t *h, uint8_t hdr_version)
 {
     if (h->magic != NIMG_PHDR_MAGIC)
         return NIMG_PHDR_CHECK_BAD_MAGIC;
     if (h->type > NIMG_PTYPE_LAST)
         return NIMG_PHDR_CHECK_BAD_TYPE;
+    if (hdr_version < 2 && h->type > NIMG_PTYPE_ROOTFS_RW)
+        return NIMG_PHDR_CHECK_WRONG_VERSION;
 
     return NIMG_PHDR_CHECK_SUCCESS;
 }
@@ -116,6 +118,8 @@ const char* nimg_phdr_check_str(nimg_phdr_check_e status)
             return "Invalid part header magic";
         case NIMG_PHDR_CHECK_BAD_TYPE:
             return "Invalid part type";
+        case NIMG_PHDR_CHECK_WRONG_VERSION:
+            return "Part type not supported in nImage version";
     }
     return NULL;
 }

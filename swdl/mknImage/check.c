@@ -80,6 +80,20 @@ int cmd_check(int argc, char **argv)
     if (hcheck == NIMG_HDR_CHECK_BAD_CRC)
         log_error("Header CRC32 is invalid!");
 
+    for (int i = 0; i < hdr.n_parts; i++)
+    {
+        nimg_phdr_check_e pcheck = nimg_phdr_check(&hdr.parts[i], hdr.version);
+        if (pcheck != NIMG_PHDR_CHECK_SUCCESS)
+        {
+            log_error("Invalid part header: %s", nimg_phdr_check_str(pcheck));
+            // bad magic is fatal, bad type or wrong version is nonfatal
+            if (pcheck == NIMG_PHDR_CHECK_BAD_MAGIC)
+                goto out;
+            else
+                nonfatal_err = true;
+        }
+    }
+
     uint64_t parts_bytes = 0;
     for (int i = 0; i < hdr.n_parts; i++)
     {
