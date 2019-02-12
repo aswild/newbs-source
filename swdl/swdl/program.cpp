@@ -182,7 +182,73 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
     // program_raw might throw an exception, which we have to catch so we can clean up
     // (i.e. maybe remount /boot)
     string err_msg;
-    try { program_raw(curl, p, g_opts.boot_dev); }
+    try
+    {
+        if (p->type == NIMG_PTYPE_BOOT_IMG)
+        {
+            // directly flash uncompressed image
+            program_raw(curl, p, g_opts.boot_dev);
+        }
+        else
+        {
+            // image is compressed, fork to gzip or xz to decompress and write
+            assert(p->type == NIMG_PTYPE_BOOT_IMG_GZ || p->type == NIMG_PTYPE_BOOT_IMG_XZ);
+            log_info("Program compressed raw part type %s (%s) to %s",
+                     part_name_from_type((nimg_ptype_e)p->type), human_bytes(p->size), g_opts.boot_dev.c_str());
+
+            int pfd[2];
+            if (pipe(pfd) == -1)
+                THROW_ERRNO("pipe failed");
+
+            pid_t dec_pid = fork();
+            if (dec_pid == -1)
+                THROW_ERRNO("fork failed");
+
+            if (dec_pid == 0)
+            {
+                // child process, open the device for writing as stdout and exec our decompressor
+                const char *argv[3];
+                argv[0] = (p->type == NIMG_PTYPE_BOOT_IMG_GZ) ? "gzip" : "xz";
+                argv[1] = "-dc";
+                argv[2] = NULL;
+
+                close(pfd[1]); // close write end of pipe
+                dup2(pfd[0], STDIN_FILENO); // redirect stdin to read end of pipe
+                int dev_fd = open(g_opts.boot_dev.c_str(), O_WRONLY);
+                if (dev_fd < 1)
+                {
+                    fprintf(stderr, "Failed to open %s for writing: %s\n", g_opts.boot_dev.c_str(), strerror(errno));
+                    _exit(98);
+                }
+                dup2(dev_fd, STDOUT_FILENO); // redirect stdout to device we just opened
+
+                execvp(argv[0], (char *const *)argv);
+                log_error("execvp failed: %s", strerror(errno));
+                _exit(99);
+            }
+
+            // main process
+            log_debug("spawned child decompressor process PID %d", dec_pid);
+            close(pfd[0]); // close read end of pipe
+            uint32_t crc;
+            try { crc = file_copy_crc32_progress(curl.fd, pfd[1], p->size); }
+            catch (exception& e)
+            {
+                close(pfd[1]);
+                kill(dec_pid, SIGKILL);
+                int wstatus;
+                waitpid(dec_pid, &wstatus, 0);
+                throw PError("%s\nFailed to program boot image! YOUR BOARD MAY NOT BOOT!", e.what());
+            }
+
+            close(pfd[1]);
+            CPipe dec_cp = { .pid = dec_pid, .fd = -1, .running = true};
+            cpipe_wait(dec_cp, true);
+            if (crc != p->crc32)
+                THROW_ERROR("CRC mismatch! expected 0x%08x, actual 0x%08x", p->crc32, crc);
+            log_info("Finished programming part %s", part_name_from_type((nimg_ptype_e)p->type));
+        }
+    }
     catch (exception& e) { err_msg += e.what(); }
 
     // try to remount
@@ -220,6 +286,8 @@ void program_part(CPipe& curl, const nimg_phdr_t *p, const stringvec& cmdline)
     switch (type)
     {
         case NIMG_PTYPE_BOOT_IMG:
+        case NIMG_PTYPE_BOOT_IMG_GZ:
+        case NIMG_PTYPE_BOOT_IMG_XZ:
             program_boot_img(curl, p);
             break;
 
