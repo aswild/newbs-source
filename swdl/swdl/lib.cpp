@@ -98,6 +98,7 @@ CPipe open_curl(const string& url_)
         // child process
         close(pfd[0]);   // close read end of the pipe
         dup2(pfd[1], 1); // redirect stdout to write end of pipe
+        close(pfd[1]);   // close old pipe fd that was just dup'd
 
         // -s (be quiet), -S (still print errors)
         // -L (follow redirects), -f (report HTTP errors)

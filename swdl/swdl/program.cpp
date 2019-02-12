@@ -138,8 +138,9 @@ static void program_boot_tar(const CPipe& curl, const nimg_phdr_t *p, const stri
         argv[4] = bootdir.c_str();
         argv[5] = NULL;
 
-        close(pfd[1]); // close write end of pipe
+        close(pfd[1]);              // close write end of pipe
         dup2(pfd[0], STDIN_FILENO); // redirect stdin to read end of pipe
+        close(pfd[0]);              // close old pipe fd that was just dup'd
         execvp(argv[0], (char *const *)argv);
         log_error("execvp failed: %s", strerror(errno));
         _exit(99);
@@ -212,8 +213,9 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
                 argv[1] = "-dc";
                 argv[2] = NULL;
 
-                close(pfd[1]); // close write end of pipe
+                close(pfd[1]);              // close write end of pipe
                 dup2(pfd[0], STDIN_FILENO); // redirect stdin to read end of pipe
+                close(pfd[0]);              // close old pipe fd that was just dup'd
                 int dev_fd = open(g_opts.boot_dev.c_str(), O_WRONLY);
                 if (dev_fd < 1)
                 {
@@ -221,6 +223,7 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
                     _exit(98);
                 }
                 dup2(dev_fd, STDOUT_FILENO); // redirect stdout to device we just opened
+                close(dev_fd);               // close old fd that was just dup'd
 
                 execvp(argv[0], (char *const *)argv);
                 log_error("execvp failed: %s", strerror(errno));
