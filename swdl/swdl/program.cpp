@@ -269,6 +269,12 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
                 err_msg += '\n';
             err_msg += e.what();
         }
+
+        // clean up copied mntent strings
+        free(bootmnt.mnt_fsname);
+        free(bootmnt.mnt_dir);
+        free(bootmnt.mnt_type);
+        free(bootmnt.mnt_opts);
     }
 
     if (err_msg.length() > 0)
