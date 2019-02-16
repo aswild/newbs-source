@@ -125,25 +125,21 @@ static void program_boot_tar(const CPipe& curl, const nimg_phdr_t *p, const stri
     if (tar_pid == 0)
     {
         // child process
-        const char *argv[6];
-        argv[0] = "tar";
-        argv[1] = "-xf-";
-        if (p->type == NIMG_PTYPE_BOOT_TARGZ)
-            argv[2] = "-z";
-        else if (p->type == NIMG_PTYPE_BOOT_TARXZ)
-            argv[2] = "-J";
-        else
-            argv[2] = "--no-auto-compress";
-        argv[3] = "-C";
-        argv[4] = bootdir.c_str();
-        argv[5] = NULL;
-
         close(pfd[1]);              // close write end of pipe
         dup2(pfd[0], STDIN_FILENO); // redirect stdin to read end of pipe
         close(pfd[0]);              // close old pipe fd that was just dup'd
-        execvp(argv[0], (char *const *)argv);
-        log_error("execvp failed: %s", strerror(errno));
-        _exit(99);
+
+        // build tar arguments
+        vector<const char*> args{"tar", "-x"};
+        if (p->type == NIMG_PTYPE_BOOT_TARGZ)
+            args.push_back("-z");
+        else if (p->type == NIMG_PTYPE_BOOT_TARXZ)
+            args.push_back("-J");
+        args.push_back("-C");
+        args.push_back(bootdir.c_str());
+        args.push_back(NULL);
+
+        do_exec(args);
     }
 
     // main process
@@ -208,11 +204,6 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
             if (dec_pid == 0)
             {
                 // child process, open the device for writing as stdout and exec our decompressor
-                const char *argv[3];
-                argv[0] = (p->type == NIMG_PTYPE_BOOT_IMG_GZ) ? "gzip" : "xz";
-                argv[1] = "-dc";
-                argv[2] = NULL;
-
                 close(pfd[1]);              // close write end of pipe
                 dup2(pfd[0], STDIN_FILENO); // redirect stdin to read end of pipe
                 close(pfd[0]);              // close old pipe fd that was just dup'd
@@ -225,9 +216,7 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
                 dup2(dev_fd, STDOUT_FILENO); // redirect stdout to device we just opened
                 close(dev_fd);               // close old fd that was just dup'd
 
-                execvp(argv[0], (char *const *)argv);
-                log_error("execvp failed: %s", strerror(errno));
-                _exit(99);
+                do_exec(vector<const char*>{((p->type == NIMG_PTYPE_BOOT_IMG_GZ) ? "gzip" : "xz"), "-dc", NULL});
             }
 
             // main process

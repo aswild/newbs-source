@@ -65,6 +65,7 @@ struct CPipe
 // lib.cpp functions
 stringvec split_words_in_file(const string& filename);
 string join_words(const stringvec& vec, const string& sep);
+void do_exec(const vector<const char*>& args) __attribute__((noreturn));
 CPipe open_curl(const string& url_);
 void cpipe_wait(CPipe& cp, bool block);
 size_t cpipe_read(CPipe& cp, void *buf, size_t count);

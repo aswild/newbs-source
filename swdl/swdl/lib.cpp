@@ -61,6 +61,40 @@ string join_words(const stringvec& vec, const string& sep)
     return ss.str();
 }
 
+// do an execvp with the given vector of arguments.
+// If debug logging is enabled, prints the command/options
+// A NULL sentinel must be present, as required by execvp.
+// This function will never return, it will print to stderr and call _exit(99)
+// if 1) args is empty, 2) args doesn't have a NULL sentinel, 3) execvp returns
+void do_exec(const vector<const char*>& args)
+{
+    if (args.empty())
+    {
+        fprintf(stderr, "%s: empty vector passed\n", __func__);
+        _exit(99);
+    }
+
+    if (args.back() != NULL)
+    {
+        fprintf(stderr, "%s: missing NULL sentinel\n", __func__);
+        _exit(99);
+    }
+
+    if (log_level >= LOG_LEVEL_DEBUG)
+    {
+        std::ostringstream oss;
+        oss <<"execvp: ";
+        for (auto arg : args)
+            if (arg != NULL)
+                oss << '\'' << arg << "' ";
+        log_debug(oss.str().c_str());
+    }
+
+    execvp(args[0], const_cast<char *const *>(args.data()));
+    fprintf(stderr, "execvp failed: %s\n", strerror(errno));
+    _exit(99);
+}
+
 CPipe open_curl(const string& url_)
 {
     string url;
@@ -125,20 +159,9 @@ CPipe open_curl(const string& url_)
 
         curl_args.push_back("--");
         curl_args.push_back(url.c_str());
+        curl_args.push_back(NULL);
 
-        if (log_level >= LOG_LEVEL_DEBUG)
-        {
-            std::ostringstream oss;
-            oss << __func__ << ": execvp: ";
-            for (auto arg : curl_args)
-                oss << '\'' << arg << "' ";
-            log_debug(oss.str().c_str());
-        }
-
-        curl_args.push_back(NULL); // execvp requires a null sentinel
-        execvp(curl_args[0], const_cast<char *const *>(curl_args.data()));
-        fprintf(stderr, "%s: execvp() failed: %s\n", __func__, strerror(errno));
-        _exit(99);
+        do_exec(curl_args);
     }
 
     // parent process
@@ -254,10 +277,11 @@ void mount_mntent(const struct mntent *m)
         THROW_ERRNO("fork() failed");
     else if (cpid == 0)
     {
-        execlp("mount", "mount", "-t", m->mnt_type, "-o", m->mnt_opts,
-               m->mnt_fsname, m->mnt_dir, NULL);
-        fprintf(stderr, "%s: execlp failed: %s\n", __func__, strerror(errno));
-        _exit(200);
+        vector<const char*> mount_args{
+            "mount", "-t", m->mnt_type, "-o", m->mnt_opts,
+             m->mnt_fsname, m->mnt_dir, NULL
+        };
+        do_exec(mount_args);
     }
     else
     {
