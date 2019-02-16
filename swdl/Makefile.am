@@ -1,18 +1,18 @@
 # mknImage Makefile
 
 AM_CPPFLAGS = -D_GNU_SOURCE -I$(srcdir)/lib
-AM_CFLAGS   = -std=gnu11 -Wall -Wextra -Werror
-AM_CXXFLAGS = -std=gnu++14 -Wall -Wextra -Werror
+AM_CFLAGS = -std=gnu11 $(COMMON_FLAGS)
+AM_CXXFLAGS = -std=gnu++14 $(COMMON_FLAGS)
+
+COMMON_FLAGS = -Wall -Wextra -Werror
 if ENABLE_SANITIZE
-AM_CFLAGS += -fsanitize=address -fsanitize=undefined
-AM_CXXFLAGS += -fsanitize=address -fsanitize=undefined
+COMMON_FLAGS += -fsanitize=address -fsanitize=undefined
 endif
 if ENABLE_LTO
-AM_CFLAGS += -flto
-AM_CXXFLAGS += -flto
+COMMON_FLAGS += -flto
 endif
 if SWDL_TEST
-AM_CPPFLAGS += -DSWDL_TEST
+COMMON_FLAGS += -DSWDL_TEST
 endif
 
 LIBSOURCES = lib/nImage.h \
@@ -29,7 +29,7 @@ bin_mknImage_SOURCES = $(LIBSOURCES) \
                        mknImage/check.c
 
 if ENABLE_SWDL
-bin_PROGRAMS += bin/newbs-swdl
+sbin_PROGRAMS = bin/newbs-swdl
 bin_newbs_swdl_SOURCES = $(LIBSOURCES) \
                          swdl/main.cpp \
                          swdl/flashbanks.cpp \
@@ -38,8 +38,8 @@ bin_newbs_swdl_SOURCES = $(LIBSOURCES) \
                          swdl/PError.h swdl/PError.cpp
 
 install-exec-hook:
-	ln -sfT newbs-swdl $(DESTDIR)$(bindir)/swdl
+	ln -sfT newbs-swdl $(DESTDIR)$(sbindir)/swdl
 
 uninstall-hook:
-	rm -f $(DESTDIR)$(bindir)/swdl
+	rm -f $(DESTDIR)$(sbindir)/swdl
 endif
