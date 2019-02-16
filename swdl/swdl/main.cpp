@@ -36,14 +36,24 @@ static void usage(const char *arg0)
     const char *progname = arg0 ? arg0 : "newbs-swdl";
     const char msg[] =
         "Usage: %s [OPTIONS...] FILE\n"
-        "Options:\n"
+        "General Options:\n"
         "  -h   Show this help text.\n"
         "  -V   Show program version.\n"
-        "  -D   Enable debug logginc.\n"
+        "  -D   Enable debug logging.\n"
         "  -q   Be more quiet.\n"
+        "\n"
+        "Rootfs bank flip options:\n"
         "  -t   Flip rootfs bank if rootfs part is in image (default).\n"
         "  -r   Flip rootfs bank an reboot after download.\n"
         "  -T   Do not flip rootfs bank or reboot.\n"
+        "\n"
+        "Image download options:\n"
+        "  -n[NETRC]    Use .netrc for authentication (default).\n"
+        "               This translates to curl's --netrc or --netrc-file option\n"
+        "               depending on wheter an argument is present\n"
+        "  -u USER:PASS username/password (passed directly to curl)\n"
+        "\n"
+        "Debug/Test Options:\n"
         "  -b   boot device node (used for debugging, probably a loop device.\n"
         "       When using a loop device, run losetup manually so the loop isn't\n"
         "       automatically removed when swdl unmounts it.\n"
@@ -57,7 +67,7 @@ static void usage(const char *arg0)
 int main(int argc, char *argv[])
 {
     int opt;
-    while ((opt = getopt(argc, argv, "hVDqtrTb:c:")) != -1)
+    while ((opt = getopt(argc, argv, "hVDqtrTn::u:b:c:")) != -1)
     {
         switch (opt)
         {
@@ -81,6 +91,13 @@ int main(int argc, char *argv[])
                 break;
             case 'T':
                 g_opts.success_action = SwdlOptions::NO_FLIP;
+                break;
+            case 'n':
+                if (optarg)
+                    g_opts.curl_netrc = optarg;
+                break;
+            case 'u':
+                g_opts.curl_username = optarg;
                 break;
             case 'b':
 #ifdef SWDL_TEST

@@ -48,6 +48,8 @@ struct SwdlOptions
 #else
     string boot_dev = string("/dev/mmcblk0p1");
 #endif
+    string curl_netrc;
+    string curl_username;
 };
 extern SwdlOptions g_opts;
 

@@ -100,10 +100,40 @@ CPipe open_curl(const string& url_)
         dup2(pfd[1], 1); // redirect stdout to write end of pipe
         close(pfd[1]);   // close old pipe fd that was just dup'd
 
+        // vector of curl options
         // -s (be quiet), -S (still print errors)
         // -L (follow redirects), -f (report HTTP errors)
-        execlp("curl", "curl", "-sSLf", "--", url.c_str(), NULL);
-        THROW_ERRNO("execlp() failed");
+        vector<const char*> curl_args{"curl", "-sSLf"};
+        if (!g_opts.curl_username.empty())
+        {
+            curl_args.push_back("-u");
+            curl_args.push_back(g_opts.curl_username.c_str());
+        }
+        else
+        {
+            if (!g_opts.curl_netrc.empty())
+            {
+                curl_args.push_back("--netrc-file");
+                curl_args.push_back(g_opts.curl_netrc.c_str());
+            }
+            else curl_args.push_back("--netrc");
+        }
+        curl_args.push_back("--");
+        curl_args.push_back(url.c_str());
+
+        if (log_level >= LOG_LEVEL_DEBUG)
+        {
+            std::ostringstream oss;
+            oss << __func__ << ": execvp: ";
+            for (auto arg : curl_args)
+                oss << '\'' << arg << "' ";
+            log_debug(oss.str().c_str());
+        }
+
+        curl_args.push_back(NULL); // execvp requires a null sentinel
+        execvp(curl_args[0], const_cast<char *const *>(curl_args.data()));
+        fprintf(stderr, "%s: execvp() failed: %s\n", __func__, strerror(errno));
+        _exit(99);
     }
 
     // parent process
