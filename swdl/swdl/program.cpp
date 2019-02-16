@@ -115,7 +115,7 @@ static void program_boot_tar(const CPipe& curl, const nimg_phdr_t *p, const stri
              part_name_from_type((nimg_ptype_e)p->type), human_bytes(p->size), bootdir.c_str());
 
     int pfd[2];
-    if (pipe(pfd) == -1)
+    if (pipe2(pfd, O_CLOEXEC) == -1)
         THROW_ERRNO("pipe failed");
 
     pid_t tar_pid = fork();
@@ -125,9 +125,7 @@ static void program_boot_tar(const CPipe& curl, const nimg_phdr_t *p, const stri
     if (tar_pid == 0)
     {
         // child process
-        close(pfd[1]);              // close write end of pipe
         dup2(pfd[0], STDIN_FILENO); // redirect stdin to read end of pipe
-        close(pfd[0]);              // close old pipe fd that was just dup'd
 
         // build tar arguments
         vector<const char*> args{"tar", "-x"};
@@ -194,7 +192,7 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
                      part_name_from_type((nimg_ptype_e)p->type), human_bytes(p->size), g_opts.boot_dev.c_str());
 
             int pfd[2];
-            if (pipe(pfd) == -1)
+            if (pipe2(pfd, O_CLOEXEC) == -1)
                 THROW_ERRNO("pipe failed");
 
             pid_t dec_pid = fork();
@@ -204,17 +202,14 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
             if (dec_pid == 0)
             {
                 // child process, open the device for writing as stdout and exec our decompressor
-                close(pfd[1]);              // close write end of pipe
                 dup2(pfd[0], STDIN_FILENO); // redirect stdin to read end of pipe
-                close(pfd[0]);              // close old pipe fd that was just dup'd
-                int dev_fd = open(g_opts.boot_dev.c_str(), O_WRONLY);
+                int dev_fd = open(g_opts.boot_dev.c_str(), O_WRONLY | O_CLOEXEC);
                 if (dev_fd < 1)
                 {
                     fprintf(stderr, "Failed to open %s for writing: %s\n", g_opts.boot_dev.c_str(), strerror(errno));
                     _exit(98);
                 }
                 dup2(dev_fd, STDOUT_FILENO); // redirect stdout to device we just opened
-                close(dev_fd);               // close old fd that was just dup'd
 
                 do_exec(vector<const char*>{((p->type == NIMG_PTYPE_BOOT_IMG_GZ) ? "gzip" : "xz"), "-dc", NULL});
             }

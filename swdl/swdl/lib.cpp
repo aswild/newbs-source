@@ -121,7 +121,7 @@ CPipe open_curl(const string& url_)
 
     // opening some sort of URI, open a pipe and fork off to curl
     int pfd[2];
-    if (pipe(pfd) == -1)
+    if (pipe2(pfd, O_CLOEXEC) == -1)
         THROW_ERRNO("pipe() failed");
 
     pid_t cpid = fork();
@@ -130,9 +130,7 @@ CPipe open_curl(const string& url_)
     else if (cpid == 0)
     {
         // child process
-        close(pfd[0]);   // close read end of the pipe
-        dup2(pfd[1], 1); // redirect stdout to write end of pipe
-        close(pfd[1]);   // close old pipe fd that was just dup'd
+        dup2(pfd[1], STDOUT_FILENO); // redirect stdout to write end of pipe
 
         // vector of curl options
         // -s (be quiet), -S (still print errors)
