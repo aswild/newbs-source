@@ -52,6 +52,8 @@ static void usage(const char *arg0)
         "               This translates to curl's --netrc or --netrc-file option\n"
         "               depending on wheter an argument is present\n"
         "  -u USER:PASS username/password (passed directly to curl)\n"
+        "  -C OPTION    Pass OPTION directly to curl, no splitting is done.\n"
+        "               This can be used multiple times.\n"
         "\n"
         "Debug/Test Options:\n"
         "  -b   boot device node (used for debugging, probably a loop device.\n"
@@ -67,7 +69,7 @@ static void usage(const char *arg0)
 int main(int argc, char *argv[])
 {
     int opt;
-    while ((opt = getopt(argc, argv, "hVDqtrTn::u:b:c:")) != -1)
+    while ((opt = getopt(argc, argv, "hVDqtrTn::u:C:b:c:")) != -1)
     {
         switch (opt)
         {
@@ -98,6 +100,9 @@ int main(int argc, char *argv[])
                 break;
             case 'u':
                 g_opts.curl_username = optarg;
+                break;
+            case 'C':
+                g_opts.curl_opts.push_back(optarg);
                 break;
             case 'b':
 #ifdef SWDL_TEST

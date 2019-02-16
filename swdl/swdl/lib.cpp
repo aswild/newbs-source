@@ -118,6 +118,11 @@ CPipe open_curl(const string& url_)
             }
             else curl_args.push_back("--netrc");
         }
+
+        // add any custom options specified with -C
+        for (auto& opt : g_opts.curl_opts)
+            curl_args.push_back(opt.c_str());
+
         curl_args.push_back("--");
         curl_args.push_back(url.c_str());
 

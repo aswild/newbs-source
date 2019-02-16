@@ -50,6 +50,7 @@ struct SwdlOptions
 #endif
     string curl_netrc;
     string curl_username;
+    stringvec curl_opts;
 };
 extern SwdlOptions g_opts;
 
