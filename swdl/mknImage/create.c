@@ -46,8 +46,10 @@ void cmd_help_create(void)
 {
     static const char msg[] =
         "    Create an nImage.\n"
-        "    usage: mknImage create -o IMAGE_FILE [-n NAME] TYPE1:FILE1 [TYPE2:FILE2]...\n"
+        "    usage: mknImage create -o IMAGE_FILE [-a] [-n NAME] TYPE1:FILE1 [TYPE2:FILE2]...\n"
         "      -o FILE: Output image file (must be a seekable file, not a pipe like stdout)\n"
+        "      -a       Automatically compress boot_img_gz and boot_img_xz parts.\n"
+        "               This option applies globally to all parts of the appropriate type.\n"
         "      -n NAME: Name to embed in the image header (max %d chars)\n"
         "      TYPEn:   Image type\n"
         "      FILEn:   Input partition data filename\n"
@@ -123,15 +125,19 @@ static int init_fileinfo(fileinfo_t *f, const char *arg)
 
 int cmd_create(int argc, char **argv)
 {
+    bool auto_compress = false;
     char *img_name = NULL;
     int opt;
     optind = 1; // reset getopt state after main options parsing
-    while ((opt = getopt(argc, argv, "o:n:")) != -1)
+    while ((opt = getopt(argc, argv, "o:an:")) != -1)
     {
         switch (opt)
         {
             case 'o':
                 img_filename = optarg;
+                break;
+            case 'a':
+                auto_compress = true;
                 break;
             case 'n':
                 if (strlen(optarg) > NIMG_NAME_LEN)
@@ -153,6 +159,10 @@ int cmd_create(int argc, char **argv)
         DIE_USAGE("create: no partitions specified");
     else if (argc > NIMG_MAX_PARTS)
         DIE("too many image parts %d, max is %d", argc, NIMG_MAX_PARTS);
+
+    // ignore SIGPIPE so we can handle errors when writes fail (e.g. to compressor pipe
+    // with autocompress)
+    signal(SIGPIPE, SIG_IGN);
 
     files = malloc(argc * sizeof(fileinfo_t));
     assert(files != NULL);
@@ -182,7 +192,7 @@ int cmd_create(int argc, char **argv)
     if (img_name != NULL)
         log_info("Image name is '%s'", img_name);
 
-    img_fd = open(img_filename, O_WRONLY | O_CREAT, 0666);
+    img_fd = open(img_filename, O_WRONLY | O_CREAT | O_CLOEXEC, 0666);
     if (img_fd == -1)
         DIE_ERRNO("unable to open '%s' for writing", img_filename);
     register_cleanup();
@@ -203,18 +213,40 @@ int cmd_create(int argc, char **argv)
         if (stat(files[i].filename, &sb) < 0)
             DIE_ERRNO("failed to stat '%s'", files[i].filename);
 
-        int part_fd = open(files[i].filename, O_RDONLY);
+        int part_fd = open(files[i].filename, O_RDONLY | O_CLOEXEC);
         if (part_fd == -1)
             DIE_ERRNO("failed to open '%s' for reading", files[i].filename);
 
+        const char *compressor = NULL;
+        switch (files[i].type)
+        {
+            case NIMG_PTYPE_BOOT_IMG_GZ:
+                compressor = "gzip";
+                break;
+            case NIMG_PTYPE_BOOT_IMG_XZ:
+                compressor = "xz";
+                break;
+            default:
+                break; // suppress enum not handled in switch warning
+        }
+
         uint32_t crc = 0;
-        ssize_t count = file_copy_crc32(&crc, (long)sb.st_size, part_fd, img_fd);
+        size_t part_size = 0;
+        ssize_t count;
+        if (auto_compress && (compressor != NULL))
+        {
+            log_info("Compressing part type %s", part_name_from_type(files[i].type));
+            count = file_copy_crc32_compress(&crc, sb.st_size, part_fd, img_fd, compressor, &part_size);
+        }
+        else
+        {
+            count = file_copy_crc32(&crc, sb.st_size, part_fd, img_fd);
+            part_size = sb.st_size;
+        }
         close(part_fd);
         if (count != sb.st_size)
         {
-            if (count == -1)
-                DIE_ERRNO("failed to read from '%s'", files[i].filename);
-            else if (count == -2)
+            if (count < 0)
                 DIE_ERRNO("failed to read from '%s'", files[i].filename);
             else
                 DIE("expected to read %zu bytes but got only %zu from '%s'",
@@ -222,7 +254,7 @@ int cmd_create(int argc, char **argv)
         }
 
         hdr.parts[i].magic  = NIMG_PHDR_MAGIC;
-        hdr.parts[i].size   = sb.st_size;
+        hdr.parts[i].size   = part_size;
         hdr.parts[i].offset = parts_bytes;
         hdr.parts[i].type   = files[i].type;
         hdr.parts[i].crc32  = crc;
@@ -233,7 +265,7 @@ int cmd_create(int argc, char **argv)
             print_part_info(&hdr.parts[i], "  ", stderr);
         }
 
-        parts_bytes += sb.st_size;
+        parts_bytes += part_size;
         unsigned int padding = (16 - (parts_bytes % 16)) % 16;
         log_debug("adding %u bytes of padding", padding);
         if (padding > 0)
