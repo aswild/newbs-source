@@ -87,7 +87,7 @@ void do_exec(const vector<const char*>& args)
         for (auto arg : args)
             if (arg != NULL)
                 oss << '\'' << arg << "' ";
-        log_debug(oss.str().c_str());
+        log_debug("%s", oss.str().c_str());
     }
 
     execvp(args[0], const_cast<char *const *>(args.data()));

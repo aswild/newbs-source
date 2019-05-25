@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2018 Allen Wild <allenwild93@gmail.com>
+ * Copyright (C) 2018-2019 Allen Wild <allenwild93@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,8 @@
 #include <unistd.h>
 
 #include "mknImage.h"
+
+#define COMPRESSOR(arg0, args...) make_str_array(arg0, ##args, NULL)
 
 // padding/alignment between images
 #define PART_ALIGN 16
@@ -217,26 +219,30 @@ int cmd_create(int argc, char **argv)
         if (part_fd == -1)
             DIE_ERRNO("failed to open '%s' for reading", files[i].filename);
 
-        const char *compressor = NULL;
-        switch (files[i].type)
+        const char **compressor = NULL;
+        if (auto_compress)
         {
-            case NIMG_PTYPE_BOOT_IMG_GZ:
-                compressor = "gzip";
-                break;
-            case NIMG_PTYPE_BOOT_IMG_XZ:
-                compressor = "xz";
-                break;
-            default:
-                break; // suppress enum not handled in switch warning
+            switch (files[i].type)
+            {
+                case NIMG_PTYPE_BOOT_IMG_GZ:
+                    compressor = COMPRESSOR("gzip");
+                    break;
+                case NIMG_PTYPE_BOOT_IMG_XZ:
+                    compressor = COMPRESSOR("xz", "-T0");
+                    break;
+                default:
+                    break; // suppress enum not handled in switch warning
+            }
         }
 
         uint32_t crc = 0;
         size_t part_size = 0;
         ssize_t count;
-        if (auto_compress && (compressor != NULL))
+        if (compressor != NULL)
         {
             log_info("Compressing part type %s", part_name_from_type(files[i].type));
             count = file_copy_crc32_compress(&crc, sb.st_size, part_fd, img_fd, compressor, &part_size);
+            free(compressor);
         }
         else
         {

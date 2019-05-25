@@ -17,6 +17,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
@@ -29,6 +30,13 @@
 #include "nImage.h"
 
 #define BLOCK_SIZE ((size_t)16384)
+
+static inline void set_fd_nonblock(int fd)
+{
+    int flags = fcntl(fd, F_GETFL);
+    flags |= O_NONBLOCK;
+    fcntl(fd, F_SETFL, flags);
+}
 
 nimg_ptype_e part_type_from_name(const char *name)
 {
@@ -180,7 +188,7 @@ ssize_t file_copy_crc32(uint32_t *crc, ssize_t len, int fd_in, int fd_out)
  * on failure.
  */
 ssize_t file_copy_crc32_compress(uint32_t *crc, ssize_t len, int fd_in, int fd_out,
-                                 const char *compressor, size_t *compressed_size)
+                                 const char **compressor, size_t *compressed_size)
 {
     // true streaming would make this function even more complicated, so cheat
     // by buffering all the file data first
@@ -195,21 +203,23 @@ ssize_t file_copy_crc32_compress(uint32_t *crc, ssize_t len, int fd_in, int fd_o
     }
 
     int inpipe[2]; // pipe from fd_in to the compressor (buffered by us)
-    if (pipe2(inpipe, O_NONBLOCK | O_CLOEXEC) < 0)
+    if (pipe2(inpipe, O_CLOEXEC) < 0)
     {
         log_error("inpipe pipe() failed: %s", strerror(errno));
         free(data);
         return -1;
     }
+    set_fd_nonblock(inpipe[1]); // set write end of pipe to non-blocking for parent
 
     int outpipe[2]; // pipe from the compressor to fd_out (buffered and crc'd by us)
-    if (pipe2(outpipe, O_NONBLOCK | O_CLOEXEC) < 0)
+    if (pipe2(outpipe, O_CLOEXEC) < 0)
     {
         log_error("outpipe pipe() failed: %s", strerror(errno));
         close(inpipe[0]); close(inpipe[1]);
         free(data);
         return -1;
     }
+    set_fd_nonblock(outpipe[0]); // set read end of pipe to non-blocking for parent
 
     pid_t cpid = fork();
     if (cpid < 0)
@@ -225,8 +235,8 @@ ssize_t file_copy_crc32_compress(uint32_t *crc, ssize_t len, int fd_in, int fd_o
         // child process
         dup2(inpipe[0], STDIN_FILENO);
         dup2(outpipe[1], STDOUT_FILENO);
-        execlp(compressor, compressor, NULL);
-        fprintf(stderr, "execlp failed to run '%s': %s", compressor, strerror(errno));
+        execvp(compressor[0], (char *const*)compressor);
+        fprintf(stderr, "execvp failed to run '%s': %s\n", compressor[0], strerror(errno));
         _exit(99);
     }
 
@@ -345,6 +355,39 @@ done_error:
 
     *compressed_size = (size_t)comp_read;
     return success ? len : -1;
+}
+
+// turn arg0 and null-terminated vargs into a null-terminated string array
+// returns a malloc'd pointer which should be free
+// strings are not strdup'd, so pointers passed here should be valid for the
+// lifetime of the returned array
+const char** make_str_array(const char *arg0, ...)
+{
+    int argc = 0;
+    const char **argv = NULL;
+    va_list ap;
+
+    va_start(ap, arg0);
+    for (argc = 0; va_arg(ap, const char*) != NULL; argc++);
+    va_end(ap);
+
+    argv = calloc(argc + 2, sizeof(const char*));
+    if (!argv)
+    {
+        log_error("failed to allocate memory for compressor args");
+        return NULL;
+    }
+
+    argv[0] = arg0;
+    va_start(ap, arg0);
+    for (int i = 1; i <= argc; i++)
+    {
+        argv[i] = va_arg(ap, const char*);
+    }
+    va_end(ap);
+    argv[argc+1] = NULL;
+
+    return argv;
 }
 
 // check the weird error handling of strtol, returning 0 or negative

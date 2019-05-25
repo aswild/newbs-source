@@ -217,7 +217,8 @@ const char*     nimg_phdr_check_str(nimg_phdr_check_e status);
 
 ssize_t         file_copy_crc32(uint32_t *crc, ssize_t len, int fd_in, int fd_out);
 ssize_t         file_copy_crc32_compress(uint32_t *crc, ssize_t len, int fd_in, int fd_out,
-                                         const char *compressor, size_t *compressed_size);
+                                         const char **compressor, size_t *compressed_size);
+const char**    make_str_array(const char *arg0, ...) __attribute__((sentinel));
 int             check_strtol(const char *str, int base, long *value);
 size_t          read_n(int fd, void *buf, size_t count);
 const char*     human_bytes(size_t s);
