@@ -11,31 +11,31 @@ endif
 KINCLUDE ?= /workspace/linux-raspberrypi/HEADERS_INSTALL/include
 endif
 
-CXXFLAGS		?= -O2 -ffast-math
-EXTRA_CXXFLAGS	= -Wall -Wextra
-USE_CXXFLAGS	= $(EXTRA_CXXFLAGS) $(CXXFLAGS)
+CXXFLAGS        ?= -g -O3 -flto
+EXTRA_CXXFLAGS  = -Wall -Wextra -Werror
+USE_CXXFLAGS    = $(EXTRA_CXXFLAGS) $(CXXFLAGS)
 
 ifneq ($(KINCLUDE),)
 USE_CXXFLAGS += -I$(KINCLUDE)
 endif
 
-bindir		?= /usr/bin
+bindir      ?= /usr/bin
 
-TARGET 		= neostrip-demo
-SOURCES		= neostrip-demo.cpp \
-			  Neostrip.cpp \
-			  utils.cpp
+TARGET      = neostrip-demo
+SOURCES     = neostrip-demo.cpp \
+              Neostrip.cpp \
+              utils.cpp
 
-DEPLOY_IP	?= 10.11.0.2
-DEPLOY_USER	?= root
-DEPLOY_PATH	?= /home/root/$(TARGET)
+DEPLOY_IP   ?= 10.11.0.2
+DEPLOY_USER ?= root
+DEPLOY_PATH ?= /home/root/$(TARGET)
 
-OBJECTS		= $(SOURCES:.cpp=.o)
-DEPS		= $(SOURCES:.cpp=.d)
+OBJECTS     = $(SOURCES:.cpp=.o)
+DEPS        = $(SOURCES:.cpp=.d)
 
 all: $(TARGET)
 $(TARGET): $(OBJECTS)
-	$(CXX) $(LDFLAGS) -o $@ $^ -lm
+	$(CXX) $(USE_CXXFLAGS) $(LDFLAGS) -o $@ $^ -lm
 
 %.o: %.cpp
 	$(CXX) -c $(USE_CXXFLAGS) -MD -MP -o $@ $<

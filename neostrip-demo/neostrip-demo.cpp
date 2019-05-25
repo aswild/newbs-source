@@ -7,7 +7,7 @@
 #include "Neostrip.h"
 #include "utils.h"
 
-#define N_PIXELS 8
+#define N_PIXELS 32
 Neostrip strip(N_PIXELS);
 
 enum {

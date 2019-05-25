@@ -74,7 +74,7 @@ void Neostrip::set_pixel(size_t n, uint32_t color)
 {
     if (n >= this->len)
     {
-        PRINT_ERR("invalid index: %u\n", n);
+        PRINT_ERR("invalid index: %zu\n", n);
         return;
     }
 
