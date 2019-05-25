@@ -74,6 +74,8 @@ typedef enum {
     // added in version 2
     NIMG_PTYPE_BOOT_IMG_GZ,
     NIMG_PTYPE_BOOT_IMG_XZ,
+    // added after version 2, but with no header version bump (for compatibility)
+    NIMG_PTYPE_BOOT_IMG_ZSTD,
 
     NIMG_PTYPE_COUNT,
     NIMG_PTYPE_LAST = NIMG_PTYPE_COUNT - 1
@@ -93,6 +95,8 @@ const char *nimg_ptype_names[] = {
     // added in version 2
     "boot_img_gz",
     "boot_img_xz",
+    // added after version 2, but with no header version bump (for compatibility)
+    "boot_img_zstd",
 };
 static_assert(sizeof(nimg_ptype_names) == (NIMG_PTYPE_COUNT * sizeof(char*)),
               "wrong number of elements  in nimg_ptype_names");

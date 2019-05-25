@@ -186,8 +186,25 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
         }
         else
         {
-            // image is compressed, fork to gzip or xz to decompress and write
-            assert(p->type == NIMG_PTYPE_BOOT_IMG_GZ || p->type == NIMG_PTYPE_BOOT_IMG_XZ);
+            // image is compressed, fork to decompressor and write
+            const char *decompressor = NULL;
+            switch (p->type)
+            {
+                case NIMG_PTYPE_BOOT_IMG_GZ:
+                    decompressor = "gzip";
+                    break;
+                case NIMG_PTYPE_BOOT_IMG_XZ:
+                    decompressor = "xz";
+                    break;
+                case NIMG_PTYPE_BOOT_IMG_ZSTD:
+                    decompressor = "zstd";
+                    break;
+                default:
+                    break;
+            }
+            if (!decompressor) // if this fails, the switch above is incomplete
+                throw PError("BUG! No decompressor found for part type %s", part_name_from_type((nimg_ptype_e)p->type));
+
             log_info("Program compressed raw part type %s (%s) to %s",
                      part_name_from_type((nimg_ptype_e)p->type), human_bytes(p->size), g_opts.boot_dev.c_str());
 
@@ -211,7 +228,7 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
                 }
                 dup2(dev_fd, STDOUT_FILENO); // redirect stdout to device we just opened
 
-                do_exec(vector<const char*>{((p->type == NIMG_PTYPE_BOOT_IMG_GZ) ? "gzip" : "xz"), "-dc", NULL});
+                do_exec(vector<const char*>{decompressor, "-dc", NULL});
             }
 
             // main process
@@ -281,6 +298,7 @@ void program_part(CPipe& curl, const nimg_phdr_t *p, const stringvec& cmdline)
         case NIMG_PTYPE_BOOT_IMG:
         case NIMG_PTYPE_BOOT_IMG_GZ:
         case NIMG_PTYPE_BOOT_IMG_XZ:
+        case NIMG_PTYPE_BOOT_IMG_ZSTD:
             program_boot_img(curl, p);
             break;
 

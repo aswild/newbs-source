@@ -50,7 +50,7 @@ void cmd_help_create(void)
         "    Create an nImage.\n"
         "    usage: mknImage create -o IMAGE_FILE [-a] [-n NAME] TYPE1:FILE1 [TYPE2:FILE2]...\n"
         "      -o FILE: Output image file (must be a seekable file, not a pipe like stdout)\n"
-        "      -a       Automatically compress boot_img_gz and boot_img_xz parts.\n"
+        "      -a       Automatically compress boot_img_* parts.\n"
         "               This option applies globally to all parts of the appropriate type.\n"
         "      -n NAME: Name to embed in the image header (max %d chars)\n"
         "      TYPEn:   Image type\n"
@@ -229,6 +229,9 @@ int cmd_create(int argc, char **argv)
                     break;
                 case NIMG_PTYPE_BOOT_IMG_XZ:
                     compressor = COMPRESSOR("xz", "-T0");
+                    break;
+                case NIMG_PTYPE_BOOT_IMG_ZSTD:
+                    compressor = COMPRESSOR("zstd", "-15", "-T0");
                     break;
                 default:
                     break; // suppress enum not handled in switch warning
