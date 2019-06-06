@@ -1,0 +1,4 @@
+*.o
+gen_init_cpio
+init
+init.cpio*

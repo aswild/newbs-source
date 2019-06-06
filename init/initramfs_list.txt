@@ -1,0 +1,4 @@
+# initramfs list, just statically-linked /init and /dev/console
+dir /dev 0755 0 0
+nod /dev/console 0600 0 0 c 5 1
+file /init ./.init.s 0755 0 0
