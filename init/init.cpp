@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
@@ -96,8 +97,14 @@ static void parse_cmdline(const char *cmdline_file=NULL)
         size_t eqpos = word.find('=');
         if (eqpos != string::npos)
         {
-            const string key = word.substr(0, eqpos);
-            const string val = word.substr(eqpos+1);
+            string key = word.substr(0, eqpos);
+            string val = word.substr(eqpos+1);
+
+            // strip trailing whitespace from value
+            size_t wpos = val.find_first_of(" \r\n\t");
+            if (wpos != string::npos)
+                val.erase(val.begin() + wpos, val.end());
+
             cmdline_params[key] = val;
         }
         else
