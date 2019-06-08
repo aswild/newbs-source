@@ -2,9 +2,9 @@
 
 COMMON_FLAGS = -Wall -Wextra -Werror
 CFLAGS   ?= -g -O2
-CFLAGS   += $(COMMON_FLAGS)
+CFLAGS   += -std=gnu99 $(COMMON_FLAGS)
 CXXFLAGS ?= -g -O2
-CXXFLAGS += $(COMMON_FLAGS)
+CXXFLAGS += -std=gnu++11 $(COMMON_FLAGS)
 
 CC    ?= gcc
 CXX   ?= g++
@@ -23,7 +23,7 @@ TARGET_CPIO = init.cpio.gz
 INITRAMFS_LIST = initramfs_list.txt
 
 TARGET_INIT = init
-TARGET_OBJ  = init.o switch_root.o PError.o
+TARGET_OBJ  = init.o switch_root.o fsmagic.o PError.o
 TARGET_INIT_S = .init.s
 
 all: $(TARGET_CPIO)
