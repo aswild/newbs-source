@@ -38,7 +38,7 @@ extern "C" int switchroot(const char *newroot);
 extern "C" const char* get_fstype(const char *device);
 
 /**********************************************************************
- * DEFINES, TYPES, AND USINGS
+ * DEFINES, TYPES, LOCALS, USING
  **********************************************************************/
 using std::getline;
 using std::ifstream;
@@ -46,6 +46,10 @@ using std::ios;
 using std::map;
 using std::string;
 using std::vector;
+
+#ifdef ENABLE_TESTS
+static int run_test(int argc, char **argv);
+#endif
 
 /**********************************************************************
  * GLOBAL VARIABLES
@@ -75,12 +79,14 @@ static inline void make_dir(const char *path)
 }
 
 // populates the cmdline_params global map
-static void parse_cmdline(void)
+static void parse_cmdline(const char *cmdline_file=NULL)
 {
+    if (cmdline_file == NULL)
+        cmdline_file = "/proc/cmdline";
     errno = 0;
-    ifstream ifs("/proc/cmdline", ios::in);
+    ifstream ifs(cmdline_file, ios::in);
     if (!ifs.good())
-        THROW_ERRNO("Failed to open /proc/cmdline for reading");
+        THROW_ERRNO("Failed to open %s for reading", cmdline_file);
 
     for (string word; getline(ifs, word, ' ');)
     {
@@ -208,7 +214,27 @@ static void mount_rootfs(void)
 
 int main(int argc, char *argv[])
 {
-    (void)argc; (void)argv;
+#ifdef ENABLE_TESTS
+    if (argc > 1 && !strcmp(argv[1], "--test"))
+    {
+        int ret = 1;
+        try
+        {
+            ret = run_test(argc-2, argv+2);
+        }
+        catch (std::exception& e)
+        {
+            printf("ERROR: %s\n", e.what());
+        }
+        return ret;
+    }
+#endif
+
+    if (getpid() != 1)
+    {
+        printf("ERROR: this program must be run as PID 1 (except for test modes)\n");
+        return 1;
+    }
 
     try
     {
@@ -233,3 +259,63 @@ int main(int argc, char *argv[])
     printf("Failed to exec new init: %s\n", strerror(errno));
     return 1;
 }
+
+#ifdef ENABLE_TESTS
+static int run_test(int argc, char **argv)
+{
+    const char *test = argv[0];
+    if (!test)
+    {
+        printf("No test specified\n");
+        return 1;
+    }
+
+    printf("Running test: %s\n", test);
+    if (!strcmp(test, "filesystems"))
+    {
+        parse_filesystems();
+        printf("Found in /proc/filesystems:\n");
+        for (const string& fs : filesystems)
+        {
+            printf("%s\n", fs.c_str());
+        }
+    }
+    else if (!strcmp(test, "fstype"))
+    {
+        if (argc < 2)
+        {
+            printf("ERROR: missing argument for fstype test: <device...>\n");
+            return 1;
+        }
+        for (int i = 1; i < argc; i++)
+        {
+            const char *fstype = get_fstype(argv[i]);
+            printf("%s:\t%s\n", argv[i], fstype ? fstype : "(null)");
+        }
+    }
+    else if (!strcmp(test, "cmdline"))
+    {
+        if (argc > 1)
+            parse_cmdline(argv[1]);
+        else
+            parse_cmdline();
+
+        printf("cmdline root='%s'\n", cmdline_params["root"].c_str());
+        printf("cmdline args:\n");
+        for (const auto& p : cmdline_params)
+        {
+            if (p.second.empty())
+                printf("'%s'\n", p.first.c_str());
+            else
+                printf("'%s'='%s'\n", p.first.c_str(), p.second.c_str());
+        }
+
+    }
+    else
+    {
+        printf("ERROR: unknown test\n");
+        return 1;
+    }
+    return 0;
+}
+#endif // ENABLE_TESTS

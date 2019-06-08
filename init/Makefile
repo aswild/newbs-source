@@ -1,6 +1,6 @@
 # newbs init Makefile
 
-COMMON_FLAGS = -Wall -Wextra -Werror
+COMMON_FLAGS = -Wall -Wextra -Werror -Wno-unused-parameter
 CFLAGS   ?= -g -O2
 CFLAGS   += -std=gnu99 $(COMMON_FLAGS)
 CXXFLAGS ?= -g -O2
@@ -13,6 +13,22 @@ ifneq ($(CROSS_COMPILE),)
 CC    = $(CROSS_COMPILE)gcc
 CXX   = $(CROSS_COMPILE)g++
 STRIP = $(CROSS_COMPILE)strip
+endif
+
+# enable the unit test code, values are 0/1/auto
+ENABLE_TESTS ?= auto
+ifeq ($(ENABLE_TESTS),auto)
+ifeq ($(shell $(CC) -dumpmachine 2>/dev/null | grep -o x86 2>/dev/null),x86)
+_ENABLE_TESTS = 1
+else
+_ENABLE_TESTS = 0
+endif
+else
+_ENABLE_TESTS = $(ENABLE_TESTS)
+endif
+
+ifeq ($(_ENABLE_TESTS),1)
+CPPFLAGS += -DENABLE_TESTS
 endif
 
 HOSTCC     ?= gcc
