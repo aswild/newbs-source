@@ -18,6 +18,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "newbs_init.h"
+
 struct fsmagic
 {
     const char *name;
@@ -52,7 +54,7 @@ static bool check_magic(const void *buf, size_t buf_len, const struct fsmagic *m
 {
     if (!buf || !buf_len || !magic)
     {
-        printf("ERROR: check_magic called with invalid argument(s)\n");
+        log_error("check_magic called with invalid argument(s)");
         return false;
     }
 
@@ -66,7 +68,7 @@ const char* get_fstype(const char *device)
 {
     if (!device)
     {
-        printf("ERROR: get_fstype called with NULL argument\n");
+        log_error("get_fstype called with NULL argument");
         return NULL;
     }
 
@@ -74,20 +76,20 @@ const char* get_fstype(const char *device)
     int fd = open(device, O_RDONLY);
     if (fd == -1)
     {
-        printf("ERROR: get_fstype: failed to open device %s: %s\n", device, strerror(errno));
+        log_error_errno("get_fstype: failed to open device %s", device);
         return NULL;
     }
 
     ssize_t rd = read(fd, buf, sizeof(buf));
     if (rd < 0)
     {
-        printf("ERROR: get_fstype: failed to read from %s: %s\n", device, strerror(errno));
+        log_error_errno("get_fstype: failed to read from %s", device);
         close(fd);
         return NULL;
     }
     else if ((size_t)rd < sizeof(buf))
     {
-        printf("WARN: get_fstype: read only %zd/%zu bytes from %s\n", rd, sizeof(buf), device);
+        log_warning("get_fstype: read only %zd/%zu bytes from %s", rd, sizeof(buf), device);
     }
     close(fd);
 
@@ -95,7 +97,7 @@ const char* get_fstype(const char *device)
     {
         if (check_magic(buf, sizeof(buf), magic))
         {
-            printf("Found filesystem type %s for %s\n", magic->name, device);
+            log_info("Found filesystem type %s for %s", magic->name, device);
             return magic->name;
         }
     }

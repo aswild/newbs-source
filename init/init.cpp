@@ -27,20 +27,16 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "newbs_init.h"
 #include "PError.h"
-
-/**********************************************************************
- * EXTERNS
- **********************************************************************/
-// from switch_root.c
-extern "C" int switchroot(const char *newroot);
-
-// from blkid.c
-extern "C" const char* get_fstype(const char *device);
 
 /**********************************************************************
  * DEFINES, TYPES, LOCALS, USING
  **********************************************************************/
+#ifndef LASTBOOT_STAMP_FILE
+#define LASTBOOT_STAMP_FILE "/boot/lastboot_timestamp"
+#endif
+
 using std::getline;
 using std::ifstream;
 using std::ios;
@@ -74,7 +70,7 @@ static vector<string> filesystems;
 static inline void make_dir(const char *path)
 {
     if ((mkdir(path, 0777) < 0) && (errno != EEXIST))
-        THROW_ERRNO("Failed to mkdir %s", path);
+        THROW_ERRNO("failed to mkdir %s", path);
 }
 
 // populates the cmdline_params global map
@@ -85,7 +81,7 @@ static void parse_cmdline(const char *cmdline_file=NULL)
     errno = 0;
     ifstream ifs(cmdline_file, ios::in);
     if (!ifs.good())
-        THROW_ERRNO("Failed to open %s for reading", cmdline_file);
+        THROW_ERRNO("failed to open %s for reading", cmdline_file);
 
     for (string word; getline(ifs, word, ' ');)
     {
@@ -117,20 +113,20 @@ static void parse_cmdline(const char *cmdline_file=NULL)
 static void early_init(void)
 {
     make_dir("/proc");
-    if (mount("none", "/proc", "proc", 0, NULL) < 0)
-        THROW_ERRNO("Failed to mount /proc");
+    if (mount("proc", "/proc", "proc", 0, NULL) < 0)
+        THROW_ERRNO("failed to mount /proc");
 
     make_dir("/sys");
-    if (mount("none", "/sys", "sysfs", 0, NULL) < 0)
-        THROW_ERRNO("Failed to mount /sys");
+    if (mount("sysfs", "/sys", "sysfs", 0, NULL) < 0)
+        THROW_ERRNO("failed to mount /sys");
 
     make_dir("/dev");
     if (mount("devtmpfs", "/dev", "devtmpfs", 0, NULL) < 0)
-        THROW_ERRNO("Failed to mount /dev");
+        THROW_ERRNO("failed to mount /dev");
 
     make_dir("/run");
     if (mount("tmpfs", "/run", "tmpfs", MS_NOSUID | MS_NODEV, "mode=0755") < 0)
-        THROW_ERRNO("Failed to mount /run");
+        THROW_ERRNO("failed to mount /run");
 
     parse_cmdline();
 }
@@ -141,7 +137,7 @@ static void parse_filesystems(void)
     errno = 0;
     ifstream ifs("/proc/filesystems", ios::in);
     if (!ifs.good())
-        THROW_ERRNO("Failed to open /proc/filesystems for reading");
+        THROW_ERRNO("failed to open /proc/filesystems for reading");
 
     for (string line; getline(ifs, line);)
     {
@@ -160,7 +156,7 @@ static void wait_for_device(const char *dev)
     constexpr useconds_t retry_delay = 10000; // 10ms = 10000us
     int retry_count = (wait_time * 1000000) / retry_delay;
 
-    printf("Waiting for device %s (max %d seconds)\n", dev, wait_time);
+    log_info("waiting for device %s (max %d seconds)", dev, wait_time);
     while (retry_count > 0)
     {
         if (access(dev, R_OK) == 0)
@@ -174,39 +170,51 @@ static void wait_for_device(const char *dev)
 // If that file is newer than the current time, advance the clock
 static void update_clock(void)
 {
+    static const char stampfile[] = LASTBOOT_STAMP_FILE;
+
     make_dir("/boot");
     wait_for_device("/dev/mmcblk0p1");
     if (mount("/dev/mmcblk0p1", "/boot", "vfat", MS_RDONLY, NULL) != 0)
     {
-        printf("WARNING: failed to mount /dev/mmcblk0p1 on /boot: %s\n", strerror(errno));
+        log_warning_errno("failed to mount /dev/mmcblk0p1 on /boot");
         return;
     }
+    log_info("mounted /dev/mmcblk0p1 on /boot");
 
     struct stat sb;
-    if (stat("/boot/lastboot_timestamp", &sb) != 0)
+    if (stat(stampfile, &sb) != 0)
     {
-        printf("WARNING: failed to stat /boot/lastboot_timestamp: %s\n", strerror(errno));
+        log_warning_errno("failed to stat %s", stampfile);
         goto out;
     }
 
     struct timespec cur_time;
     clock_gettime(CLOCK_REALTIME, &cur_time);
+
+    // the whole point of this initramfs is to set the clock to *after* the mtime of the
+    // most recent systemd journal file. Because it's hard to get the shutdown script
+    // ordering wrong, the journal's timestamp is probably newer than the stamp file
+    // in /boot. Add an arbitrary amount to account for that difference.
+    sb.st_mtim.tv_sec += 15;
+
     if (cur_time.tv_sec < sb.st_mtim.tv_sec)
     {
-        // the whole point of this is to set the clock to *after* the mtime of the
-        // most recent systemd journal file. Because it's hard to get the shutdown script
-        // ordering wrong, the journal's timestamp is probably newer than the stamp file
-        // in /boot. Add an arbitrary amount to account for that difference.
-        sb.st_mtim.tv_sec += 15;
 
-        printf("Advancing clock to %s\n", ctime(&sb.st_mtim.tv_sec));
+        char timebuf[32] = {0};
+        ctime_r(&sb.st_mtim.tv_sec, timebuf);
+        timebuf[strlen(timebuf)-1] = '\0'; // remove \n
+
+        log_info("advancing clock to %s", timebuf);
         if (clock_settime(CLOCK_REALTIME, &sb.st_mtim) != 0)
-            printf("WARNING: failed to set time: %s\n", strerror(errno));
+            log_warning_errno("failed to set time");
     }
 
 out:
     if (umount("/boot") != 0)
-        printf("WARNING: failed to unmount /boot: %s\n", strerror(errno));
+    {
+        if (umount2("/boot", MNT_DETACH) != 0)
+            log_warning_errno("failed to unmount /boot");
+    }
 }
 
 // mount the root filesystem
@@ -216,7 +224,7 @@ static void mount_rootfs(void)
     string& rootfs_dev_str = cmdline_params["root"];
     if (rootfs_dev_str.empty())
     {
-        printf("WARNING: no root= found in /proc/cmdline, using default /dev/mmcblk0p2\n");
+        log_warning("no root= found in /proc/cmdline, using default /dev/mmcblk0p2");
         rootfs_dev_str = string("/dev/mmcblk0p2");
     }
     rootfs_dev = rootfs_dev_str.c_str();
@@ -225,7 +233,7 @@ static void mount_rootfs(void)
     // the sdcard when the initramfs starts
     wait_for_device(rootfs_dev);
     if (access(rootfs_dev, R_OK) != 0)
-        THROW_ERROR("Unable to find root device %s\n", rootfs_dev);
+        THROW_ERROR("unable to find root device %s", rootfs_dev);
 
     make_dir(rootfs_mountpoint);
 
@@ -248,15 +256,15 @@ static void mount_rootfs(void)
         if (errno != -EINVAL)
         {
             // in our case, EINVAL means bad superblock, which we ignore and try the next type
-            printf("warning: failed to mount %s as type %s: %s\n",
-                   rootfs_dev, type.c_str(), strerror(errno));
+            log_warning_errno("failed to mount %s as type %s",
+                              rootfs_dev, type.c_str());
         }
     }
 
-    printf("Didn't mount root! Tried fs types: ");
+    log_raw("FATAL: Didn't mount root! Tried fs types: ");
     for (const auto& type : filesystems)
-        printf("%s ", type.c_str());
-    putchar('\n');
+        log_raw("%s ", type.c_str());
+    log_raw("\n");
     THROW_ERROR("unable to mount root filesystem");
 }
 
@@ -272,21 +280,23 @@ int main(int argc, char *argv[])
         }
         catch (std::exception& e)
         {
-            printf("ERROR: %s\n", e.what());
+            log_error("%s", e.what());
         }
         return ret;
     }
+#else
+    // suppress -Werror=unused-parameter
+    (void)argc; (void)argv;
 #endif
 
     if (getpid() != 1)
-    {
-        printf("ERROR: this program must be run as PID 1 (except for test modes)\n");
-        return 1;
-    }
+        FATAL("this program must be run as PID 1 (except for test modes)");
 
     try
     {
         early_init();
+        log_init();
+        atexit(log_deinit);
         update_clock();
         mount_rootfs();
         if (switchroot(rootfs_mountpoint) != 0)
@@ -294,19 +304,19 @@ int main(int argc, char *argv[])
     }
     catch (std::exception& e)
     {
-        printf("ERROR: %s\n", e.what());
-        return 1;
+        FATAL("%s", e.what());
     }
 
     if (access("/sbin/init", X_OK))
-        printf("WARNING: /sbin/init doesn't appear to exist or isn't executable\n");
+        log_warning("/sbin/init doesn't appear to exist or isn't executable");
 
-    printf("Leaving initramfs...\n");
+    log_info("leaving initramfs...");
     execl("/sbin/init", "/sbin/init", NULL);
 
     // NOTE: see util_linux c.h errexec definition for standard return codes if exec fails
-    printf("Failed to exec new init: %s\n", strerror(errno));
-    return 1;
+    int ret = (errno == ENOENT) ? 127 : 126;
+    log_fatal_errno("failed to exec new init");
+    return ret;
 }
 
 #ifdef ENABLE_TESTS

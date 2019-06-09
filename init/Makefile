@@ -1,8 +1,8 @@
 # newbs init Makefile
 
-COMMON_FLAGS = -Wall -Wextra -Werror -Wno-unused-parameter
+COMMON_FLAGS = -Wall -Wextra -Werror
 CFLAGS   ?= -g -O2
-CFLAGS   += -std=gnu99 $(COMMON_FLAGS)
+CFLAGS   += -std=gnu11 $(COMMON_FLAGS)
 CXXFLAGS ?= -g -O2
 CXXFLAGS += -std=gnu++11 $(COMMON_FLAGS)
 
@@ -39,10 +39,14 @@ TARGET_CPIO = init.cpio.gz
 INITRAMFS_LIST = initramfs_list.txt
 
 TARGET_INIT = init
-TARGET_OBJ  = init.o switch_root.o fsmagic.o PError.o
+TARGET_OBJ  = init.o switch_root.o fsmagic.o log.o PError.o
 TARGET_INIT_S = .init.s
+HEADERS = newbs_init.h
 
 all: $(TARGET_CPIO)
+
+$(TARGET_OBJ) : $(HEADERS)
+$(HEADERS):
 
 $(TARGET_INIT): $(TARGET_OBJ)
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -static -o $@ $^
