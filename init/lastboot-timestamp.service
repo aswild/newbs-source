@@ -1,0 +1,15 @@
+[Unit]
+Description=Save Last Boot Timestamp
+RequiresMountsFor=/boot
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/usr/bin/touch /boot/lastboot_timestamp
+
+[Install]
+WantedBy=multi-user.target
+
+# vim: ft=systemd
