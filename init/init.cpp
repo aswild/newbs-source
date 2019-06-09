@@ -55,8 +55,6 @@ static int run_test(int argc, char **argv);
 /**********************************************************************
  * GLOBAL VARIABLES
  **********************************************************************/
-static const char boot_device[] = "/dev/mmcblk0p1";
-static const char boot_mountpoint[] = "/boot";
 static const char rootfs_mountpoint[] = "/rootfs";
 
 // map of arguments in /proc/cmdline. Each space-separated word is split on the
@@ -156,12 +154,64 @@ static void parse_filesystems(void)
     ifs.close();
 }
 
+static void wait_for_device(const char *dev)
+{
+    constexpr int wait_time = 15; // seconds
+    constexpr useconds_t retry_delay = 10000; // 10ms = 10000us
+    int retry_count = (wait_time * 1000000) / retry_delay;
+
+    printf("Waiting for device %s (max %d seconds)\n", dev, wait_time);
+    while (retry_count > 0)
+    {
+        if (access(dev, R_OK) == 0)
+            break;
+        usleep(retry_delay);
+        retry_count--;
+    }
+}
+
+// mount /dev/mmcblk0p1 on /boot and check the timestamp of /boot/lastboot_timestamp
+// If that file is newer than the current time, advance the clock
+static void update_clock(void)
+{
+    make_dir("/boot");
+    wait_for_device("/dev/mmcblk0p1");
+    if (mount("/dev/mmcblk0p1", "/boot", "vfat", MS_RDONLY, NULL) != 0)
+    {
+        printf("WARNING: failed to mount /dev/mmcblk0p1 on /boot: %s\n", strerror(errno));
+        return;
+    }
+
+    struct stat sb;
+    if (stat("/boot/lastboot_timestamp", &sb) != 0)
+    {
+        printf("WARNING: failed to stat /boot/lastboot_timestamp: %s\n", strerror(errno));
+        goto out;
+    }
+
+    struct timespec cur_time;
+    clock_gettime(CLOCK_REALTIME, &cur_time);
+    if (cur_time.tv_sec < sb.st_mtim.tv_sec)
+    {
+        // the whole point of this is to set the clock to *after* the mtime of the
+        // most recent systemd journal file. Because it's hard to get the shutdown script
+        // ordering wrong, the journal's timestamp is probably newer than the stamp file
+        // in /boot. Add an arbitrary amount to account for that difference.
+        sb.st_mtim.tv_sec += 15;
+
+        printf("Advancing clock to %s\n", ctime(&sb.st_mtim.tv_sec));
+        if (clock_settime(CLOCK_REALTIME, &sb.st_mtim) != 0)
+            printf("WARNING: failed to set time: %s\n", strerror(errno));
+    }
+
+out:
+    if (umount("/boot") != 0)
+        printf("WARNING: failed to unmount /boot: %s\n", strerror(errno));
+}
+
 // mount the root filesystem
 static void mount_rootfs(void)
 {
-    if ((mkdir(rootfs_mountpoint, 0777) < 0) && (errno != EEXIST))
-        THROW_ERRNO("Failed to mkdir %s", rootfs_mountpoint);
-
     const char *rootfs_dev = NULL;
     string& rootfs_dev_str = cmdline_params["root"];
     if (rootfs_dev_str.empty())
@@ -173,20 +223,11 @@ static void mount_rootfs(void)
 
     // wait for root device to become ready, the kernel is usually still setting up
     // the sdcard when the initramfs starts
-    constexpr int rootfs_wait_time = 15; // seconds
-    constexpr useconds_t retry_delay = 10000; // 10ms = 10000us
-    int retry_count = (rootfs_wait_time * 1000000) / retry_delay;
-
-    printf("Waiting for root device %s (max %d seconds)\n", rootfs_dev, rootfs_wait_time);
-    while (retry_count > 0)
-    {
-        if (access(rootfs_dev, R_OK) == 0)
-            break;
-        usleep(retry_delay);
-        retry_count--;
-    }
+    wait_for_device(rootfs_dev);
     if (access(rootfs_dev, R_OK) != 0)
         THROW_ERROR("Unable to find root device %s\n", rootfs_dev);
+
+    make_dir(rootfs_mountpoint);
 
     const char *fstype = get_fstype(rootfs_dev);
     if (fstype != NULL)
@@ -246,6 +287,7 @@ int main(int argc, char *argv[])
     try
     {
         early_init();
+        update_clock();
         mount_rootfs();
         if (switchroot(rootfs_mountpoint) != 0)
             THROW_ERROR("switchroot failed");
