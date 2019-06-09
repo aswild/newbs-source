@@ -1,4 +1,5 @@
 *.o
 gen_init_cpio
+.init.s
 init
 init.cpio*
