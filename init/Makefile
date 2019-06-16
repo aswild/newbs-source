@@ -4,7 +4,7 @@ COMMON_FLAGS = -Wall -Wextra -Werror
 CFLAGS   ?= -g -O2
 CFLAGS   += -std=gnu11 $(COMMON_FLAGS)
 CXXFLAGS ?= -g -O2
-CXXFLAGS += -std=gnu++11 $(COMMON_FLAGS)
+CXXFLAGS += -std=gnu++11 -fno-exceptions $(COMMON_FLAGS)
 
 CC    ?= gcc
 CXX   ?= g++
@@ -39,7 +39,7 @@ TARGET_CPIO = init.cpio.gz
 INITRAMFS_LIST = initramfs_list.txt
 
 TARGET_INIT = init
-TARGET_OBJ  = init.o switch_root.o fsmagic.o log.o PError.o
+TARGET_OBJ  = init.o switch_root.o fsmagic.o log.o
 TARGET_INIT_S = .init.s
 HEADERS = newbs_init.h
 

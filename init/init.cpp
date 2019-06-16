@@ -8,7 +8,6 @@
 /**********************************************************************
  * INCLUDES
  **********************************************************************/
-#include <exception>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -28,7 +27,6 @@
 #include <unistd.h>
 
 #include "newbs_init.h"
-#include "PError.h"
 
 /**********************************************************************
  * DEFINES, TYPES, LOCALS, USING
@@ -66,11 +64,11 @@ static vector<string> filesystems;
 /**********************************************************************
  * FUNCTIONS
  **********************************************************************/
-// make a directory, throw an exception if it didn't work
+// make a directory, fatal error if it didn't work
 static inline void make_dir(const char *path)
 {
     if ((mkdir(path, 0777) < 0) && (errno != EEXIST))
-        THROW_ERRNO("failed to mkdir %s", path);
+        FATAL_ERRNO("failed to mkdir %s", path);
 }
 
 // populates the cmdline_params global map
@@ -81,7 +79,7 @@ static void parse_cmdline(const char *cmdline_file=NULL)
     errno = 0;
     ifstream ifs(cmdline_file, ios::in);
     if (!ifs.good())
-        THROW_ERRNO("failed to open %s for reading", cmdline_file);
+        FATAL_ERRNO("failed to open %s for reading", cmdline_file);
 
     for (string word; getline(ifs, word, ' ');)
     {
@@ -114,30 +112,33 @@ static void early_init(void)
 {
     make_dir("/proc");
     if (mount("proc", "/proc", "proc", 0, NULL) < 0)
-        THROW_ERRNO("failed to mount /proc");
+        FATAL_ERRNO("failed to mount /proc");
 
     make_dir("/sys");
     if (mount("sysfs", "/sys", "sysfs", 0, NULL) < 0)
-        THROW_ERRNO("failed to mount /sys");
+        FATAL_ERRNO("failed to mount /sys");
 
     make_dir("/dev");
     if (mount("devtmpfs", "/dev", "devtmpfs", 0, NULL) < 0)
-        THROW_ERRNO("failed to mount /dev");
+        FATAL_ERRNO("failed to mount /dev");
 
     make_dir("/run");
     if (mount("tmpfs", "/run", "tmpfs", MS_NOSUID | MS_NODEV, "mode=0755") < 0)
-        THROW_ERRNO("failed to mount /run");
+        FATAL_ERRNO("failed to mount /run");
 
     parse_cmdline();
 }
 
 // populate the filesystems vector from /proc/filesystems
-static void parse_filesystems(void)
+static bool parse_filesystems(void)
 {
     errno = 0;
     ifstream ifs("/proc/filesystems", ios::in);
     if (!ifs.good())
-        THROW_ERRNO("failed to open /proc/filesystems for reading");
+    {
+        log_error_errno("failed to open /proc/filesystems for reading");
+        return false;
+    }
 
     for (string line; getline(ifs, line);)
     {
@@ -148,6 +149,7 @@ static void parse_filesystems(void)
         filesystems.push_back(line.substr(pos));
     }
     ifs.close();
+    return filesystems.size() > 0;
 }
 
 static void wait_for_device(const char *dev)
@@ -193,7 +195,7 @@ static void update_clock(void)
 
     // the whole point of this initramfs is to set the clock to *after* the mtime of the
     // most recent systemd journal file. Because it's hard to get the shutdown script
-    // ordering wrong, the journal's timestamp is probably newer than the stamp file
+    // ordering precise, the journal's timestamp is probably newer than the stamp file
     // in /boot. Add an arbitrary amount to account for that difference.
     sb.st_mtim.tv_sec += 15;
 
@@ -233,7 +235,7 @@ static void mount_rootfs(void)
     // the sdcard when the initramfs starts
     wait_for_device(rootfs_dev);
     if (access(rootfs_dev, R_OK) != 0)
-        THROW_ERROR("unable to find root device %s", rootfs_dev);
+        FATAL_ERRNO("unable to find root device %s", rootfs_dev);
 
     make_dir(rootfs_mountpoint);
 
@@ -246,26 +248,28 @@ static void mount_rootfs(void)
 
     // didn't find a known filesystem magic or the mount above failed,
     // try everything from /proc/filesystems
-    parse_filesystems();
-    for (const auto& type : filesystems)
+    if (parse_filesystems())
     {
-        int r = mount(rootfs_dev, rootfs_mountpoint, type.c_str(), MS_RDONLY, NULL);
-        if (r == 0)
-            return; // success, we're done
-
-        if (errno != -EINVAL)
+        for (const auto& type : filesystems)
         {
-            // in our case, EINVAL means bad superblock, which we ignore and try the next type
-            log_warning_errno("failed to mount %s as type %s",
-                              rootfs_dev, type.c_str());
-        }
-    }
+            int r = mount(rootfs_dev, rootfs_mountpoint, type.c_str(), MS_RDONLY, NULL);
+            if (r == 0)
+                return; // success, we're done
 
-    log_raw("FATAL: Didn't mount root! Tried fs types: ");
-    for (const auto& type : filesystems)
-        log_raw("%s ", type.c_str());
-    log_raw("\n");
-    THROW_ERROR("unable to mount root filesystem");
+            if (errno != -EINVAL)
+            {
+                // in our case, EINVAL means bad superblock, which we ignore and try the next type
+                log_warning_errno("failed to mount %s as type %s",
+                                  rootfs_dev, type.c_str());
+            }
+        }
+
+        log_raw("FATAL: Didn't mount root! Tried fs types: ");
+        for (const auto& type : filesystems)
+            log_raw("%s ", type.c_str());
+        log_raw("\n");
+    }
+    FATAL("unable to mount root filesystem");
 }
 
 int main(int argc, char *argv[])
@@ -273,16 +277,7 @@ int main(int argc, char *argv[])
 #ifdef ENABLE_TESTS
     if (argc > 1 && !strcmp(argv[1], "--test"))
     {
-        int ret = 1;
-        try
-        {
-            ret = run_test(argc-2, argv+2);
-        }
-        catch (std::exception& e)
-        {
-            log_error("%s", e.what());
-        }
-        return ret;
+        return run_test(argc-2, argv+2);
     }
 #else
     // suppress -Werror=unused-parameter
@@ -292,20 +287,13 @@ int main(int argc, char *argv[])
     if (getpid() != 1)
         FATAL("this program must be run as PID 1 (except for test modes)");
 
-    try
-    {
-        early_init();
-        log_init();
-        atexit(log_deinit);
-        update_clock();
-        mount_rootfs();
-        if (switchroot(rootfs_mountpoint) != 0)
-            THROW_ERROR("switchroot failed");
-    }
-    catch (std::exception& e)
-    {
-        FATAL("%s", e.what());
-    }
+    early_init();
+    log_init();
+    atexit(log_deinit);
+    update_clock();
+    mount_rootfs();
+    if (switchroot(rootfs_mountpoint) != 0)
+        FATAL("switchroot failed");
 
     if (access("/sbin/init", X_OK))
         log_warning("/sbin/init doesn't appear to exist or isn't executable");
