@@ -231,7 +231,7 @@ int cmd_create(int argc, char **argv)
                     compressor = COMPRESSOR("xz", "-T0");
                     break;
                 case NIMG_PTYPE_BOOT_IMG_ZSTD:
-                    compressor = COMPRESSOR("zstd", "-15", "-T0");
+                    compressor = COMPRESSOR("zstd", "-19", "-T0");
                     break;
                 default:
                     break; // suppress enum not handled in switch warning
