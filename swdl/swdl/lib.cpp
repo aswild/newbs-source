@@ -18,6 +18,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <string>
 #include <vector>
 #include <iterator>
 
@@ -59,6 +60,16 @@ string join_words(const stringvec& vec, const string& sep)
         ss << *it;
     }
     return ss.str();
+}
+
+stringvec split_string(const string& input, char delim)
+{
+    std::istringstream iss(input);
+    stringvec out;
+    string word;
+    while (std::getline(iss, word, delim))
+        out.push_back(word);
+    return out;
 }
 
 // do an execvp with the given vector of arguments.
@@ -267,16 +278,50 @@ bool find_mntent(const string& dev, struct mntent *ment)
 // Do this by forking a mount(8) process rather than using mount(2)
 // because it'd be tedious and unreliable to convert the string mnt_opts
 // to a set of integer flags needed by mount(2).
-void mount_mntent(const struct mntent *m)
+void mount_mntent(const struct mntent *m, bool force_rw)
 {
     assert(m != NULL);
+
     pid_t cpid = fork();
     if (cpid < 0)
         THROW_ERRNO("fork() failed");
     else if (cpid == 0)
     {
+        string mountopts(m->mnt_opts);
+        if (force_rw)
+        {
+            // split up mount options, replace 'ro' with 'rw' if needed, join back together
+            stringvec vopts = split_string(mountopts, ',');
+            auto it = vopts.begin();
+            bool set_rw = false;
+            while (it != vopts.end())
+            {
+                if (*it == "ro")
+                {
+                    it->assign("rw");
+                    set_rw = true;
+                    log_info("mount %s was read-only, remounting as read-write", m->mnt_dir);
+                    break;
+                }
+                else if (*it == "rw")
+                {
+                    set_rw = true;
+                    log_debug("mount %s was already read-write", m->mnt_dir);
+                    break;
+                }
+                ++it;
+            }
+            if (!set_rw)
+            {
+                // didn't find an "ro" option to replace, append one
+                vopts.push_back(string("rw"));
+                log_debug("mount %s didn't specify ro/rw, adding rw option", m->mnt_dir);
+            }
+            mountopts = join_words(vopts, ",");
+        }
+
         vector<const char*> mount_args{
-            "mount", "-t", m->mnt_type, "-o", m->mnt_opts,
+            "mount", "-t", m->mnt_type, "-o", mountopts.c_str(),
              m->mnt_fsname, m->mnt_dir, NULL
         };
         do_exec(mount_args);

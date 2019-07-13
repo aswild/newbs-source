@@ -65,6 +65,7 @@ struct CPipe
 // lib.cpp functions
 stringvec split_words_in_file(const string& filename);
 string join_words(const stringvec& vec, const string& sep);
+stringvec split_string(const string& input, char delim);
 void do_exec(const vector<const char*>& args) __attribute__((noreturn));
 CPipe open_curl(const string& url_);
 void cpipe_wait(CPipe& cp, bool block);
@@ -74,7 +75,7 @@ size_t cpipe_read(CPipe& cp, void *buf, size_t count);
 string get_inactive_dev(const stringvec& cmdline);
 void cmdline_set_root(stringvec& cmdline, const string& new_root, bool rw);
 bool find_mntent(const string& dev, struct mntent *ment);
-void mount_mntent(const struct mntent *m);
+void mount_mntent(const struct mntent *m, bool force_rw=false);
 
 // program.cpp functions
 void program_part(CPipe& curl, const nimg_phdr_t *p, const stringvec& cmdline);

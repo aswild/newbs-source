@@ -261,7 +261,7 @@ static void program_boot_img(const CPipe& curl, const nimg_phdr_t *p)
         try
         {
             log_info("remounting %s on %s", bootmnt.mnt_fsname, bootmnt.mnt_dir);
-            mount_mntent(&bootmnt);
+            mount_mntent(&bootmnt, true);
         }
         catch (exception& e)
         {
