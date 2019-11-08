@@ -3,10 +3,7 @@
 # Copyright 2019 Allen Wild
 # SPDX-License-Identifier: GPLv2
 #
-
-export KERNEL_SRC ?= /workspace/newbs/build-raspberrypi4-64/tmp/work-shared/raspberrypi4-64/kernel-build-artifacts
-export CROSS_COMPILE ?= aarch64-linux-gnu-
-export ARCH ?= arm64
+KERNEL_SRC ?= /lib/modules/$(uname -r)/build
 
 ifneq ($(KERNELRELEASE),)
 obj-m := wktest.o
