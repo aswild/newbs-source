@@ -35,7 +35,8 @@ HOSTCC     ?= gcc
 HOSTCFLAGS ?= -g -O2
 HOSTCFLAGS += $(COMMON_FLAGS)
 
-TARGET_CPIO = init.cpio.gz
+TARGET_CPIO = init.cpio.zst
+TARGET_CPIO_UNCOMPRESSED = init.cpio
 INITRAMFS_LIST = initramfs_list.txt
 
 TARGET_INIT = init
@@ -57,8 +58,11 @@ $(TARGET_INIT_S): $(TARGET_INIT)
 gen_init_cpio: gen_init_cpio.c
 	$(HOSTCC) $(HOSTCFLAGS) $(HOSTLDFLAGS) -o $@ $^
 
-$(TARGET_CPIO): $(TARGET_INIT_S) $(INITRAMFS_LIST) gen_init_cpio
-	set -eo pipefail; ./gen_init_cpio $(INITRAMFS_LIST) | gzip -c -9 >$@
+$(TARGET_CPIO_UNCOMPRESSED): $(TARGET_INIT_S) $(INITRAMFS_LIST) gen_init_cpio
+	./gen_init_cpio $(INITRAMFS_LIST) >$@
+
+$(TARGET_CPIO): $(TARGET_CPIO_UNCOMPRESSED)
+	zstd -19 -c $^ >$@
 
 clean:
 	rm -f $(TARGET_INIT) $(TARGET_INIT_S) $(TARGET_CPIO) gen_init_cpio $(TARGET_OBJ)
