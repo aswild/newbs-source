@@ -105,15 +105,24 @@ static void register_cleanup(void)
 
 static int init_fileinfo(fileinfo_t *f, const char *arg)
 {
-    char *colon = strchr(arg, ':');
+    char *name = strdup(arg);
+    if (name == NULL)
+    {
+        log_error("malloc failure");
+        return -1;
+    }
+
+    char *colon = strchr(name, ':');
     if (colon == NULL)
     {
         log_error("invalid partition filename format: '%s'", arg);
         return -1;
     }
+    size_t colon_pos = colon - name;
     *colon = '\0';
 
-    nimg_ptype_e type = part_type_from_name(arg);
+    nimg_ptype_e type = part_type_from_name(name);
+    free(name);
     if (type == NIMG_PTYPE_INVALID)
     {
         log_error("invalid partition type '%s'", arg);
@@ -121,7 +130,7 @@ static int init_fileinfo(fileinfo_t *f, const char *arg)
     }
 
     f->type = type;
-    f->filename = colon + 1;
+    f->filename = arg + colon_pos + 1;
     return 0;
 }
 
