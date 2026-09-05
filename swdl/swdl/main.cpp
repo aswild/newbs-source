@@ -282,10 +282,14 @@ int main(int argc, char *argv[])
             log_info("SWDL test enabled, not actually rebooting!");
 #else
             log_info("Rebooting now!");
+            int ret;
             if (geteuid() == 0)
-                system("reboot"); // system command because I'm lazy
+                ret = system("reboot"); // system command because I'm lazy
             else
-                system("sudo reboot");
+                ret = system("sudo reboot");
+
+            if (ret)
+                log_error("Failed to run reboot command");
 #endif
         }
     }
